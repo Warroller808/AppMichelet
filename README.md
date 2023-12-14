@@ -11,6 +11,7 @@ sudo git clone -b BRANCH_NAME url
 
 ```
 cd /var/www/AppMichelet
+chown -R ubuntu:www-data .
 chmod +x install_app
 sudo ./install_app
 ```
