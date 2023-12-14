@@ -1,0 +1,59 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <title>Application contrôle remises - Pharmacie Michelet</title>
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="\">Importer des factures</a>
+        <a href="\afficher_tableau_synthese\">Tableau Synthèse</a>
+        <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
+    </div>
+
+    <div class="content">
+
+        <h1>Importer un catalogue produit</h1>
+
+        <form method="post" enctype="multipart/form-data" action="/upload_catalogue_excel/">
+            {% csrf_token %}
+            <input type="file" name="catalogue" accept=".xls, .xlsx" required>
+            <button type="submit">Charger le catalogue</button>
+        </form>
+
+        <div class="events-box">
+            <h4>Évènements d'importation</h4>
+            <div class="events-content">
+                <table border="0">
+                    {% for ligne in events %}
+                        <tr>
+                            <td>{{ ligne }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
+        <div class="debug-line" onclick="toggleDebug()">
+            <p>Cliquez pour afficher le débogage</p>
+        </div>
+    
+        <div class="debug-content" id="debugContent">
+            
+        </div>
+    </div>
+</body>
+
+<script>
+    function toggleDebug() {
+        var debugContent = document.getElementById("debugContent");
+        debugContent.classList.toggle("show-debug");
+    }
+</script>
+
+</html>

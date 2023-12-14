@@ -1,0 +1,128 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <title>Application contrôle remises - Pharmacie Michelet</title>
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="\">Importer des factures</a>
+        <a href="\afficher_tableau_synthese\">Tableau Synthèse</a>
+        <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
+    </div>
+
+    <div class="content">
+
+        <h1>Importer des Factures</h1>
+
+        <form method="post" enctype="multipart/form-data" action="/upload_factures/">
+            {% csrf_token %}
+            <input type="file" name="factures" multiple required>
+            <button type="submit">Ajouter des factures</button>
+        </form>
+
+        <div class="events-box">
+            <h4>Évènements d'importation</h4>
+            <div class="events-content">
+                <table border="0">
+                    {% for ligne in events %}
+                        <tr>
+                            <td>{{ ligne }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+
+        <div class="debug-line" onclick="toggleDebug()">
+            <p>Cliquez pour afficher le débogage</p>
+        </div>
+    
+        <div class="debug-content" id="debugContent">
+            {% if table_achats_finale %}
+                <h2>Tableau final :</h2>
+                <table border="2">
+                    <tr>
+                        <td>Produit</td>
+                        <td>Désignation</td>
+                        <td>Nb boites</td>
+                        <td>Prix unitaire HT</td>
+                        <td>Remise %</td>
+                        <td>Remise unitaire HT</td>
+                        <td>Montant HT hors remise</td>
+                        <td>Montant HT</td>
+                        <td>TVA</td>
+                        <td>Date</td>
+                        <td>Fichier de provenance</td>
+                        <td>Numéro de facture</td>
+                        <td>Fournisseur</td>
+                    </tr>
+                    {% for ligne in table_achats_finale %}
+                        <tr>
+                            {% for cellule in ligne %}
+                                <td>{{ cellule }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+
+            {% if table_produits %}
+                <h2>Tableau produits uniques :</h2>
+                <table border="2">
+                    <tr>
+                        <td>Produit</td>
+                        <td>Désignation</td>
+                        <td>Prix unitaire HT</td>
+                        <td>Remise %</td>
+                        <td>Fournisseur</td>
+                    </tr>
+                    {% for ligne in table_produits %}
+                        <tr>
+                            {% for cellule in ligne %}
+                                <td>{{ cellule }}</td>
+                            {% endfor %}
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+
+            {% if texte_page %}
+                <h2>Texte page :</h2>
+                <table border="2">
+                    {% for ligne in texte_page %}
+                        <tr>
+                            <td>{{ ligne }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+
+            {% if tables_page %}
+                <h2>Tables page :</h2>
+                <table border="2">
+                    {% for ligne in tables_page %}
+                        <tr>
+                            <td>{{ ligne }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% endif %}
+        </div>
+    </div>
+
+</body>
+
+<script>
+    function toggleDebug() {
+        var debugContent = document.getElementById("debugContent");
+        debugContent.classList.toggle("show-debug");
+    }
+</script>
+
+</html>

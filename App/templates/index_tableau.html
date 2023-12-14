@@ -1,0 +1,51 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style_tableau.css' %}">
+    <title>Application contrôle remises - Pharmacie Michelet</title>
+</head>
+<body>
+    <div class="navbar">
+        <a href="\">Importer des factures</a>
+        <a href="\afficher_tableau_synthese\">Tableau Synthèse</a>
+        <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
+    </div>
+
+    <div class="content">
+        <h1>Tableau synthèse</h1>
+
+        <form method="post" action="\afficher_tableau_synthese\">
+            {% csrf_token %}
+            <button type="submit">Afficher le tableau</button>
+        </form>
+
+        {% if tableau_synthese %}
+            <table border="1">
+                <thead>
+                <tr>
+                    <th>Mois/Année</th>
+                    {% for categorie in categories %}
+                        <th>{{ categorie }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for ligne in tableau_synthese %}
+                    <tr>
+                        {% for cellule in ligne %}
+                            <td>{{ cellule }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+    </div>
+</body>
+</html>
