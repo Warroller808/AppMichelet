@@ -1,0 +1,28 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <title>Document</title>
+</head>
+<body>
+
+    <div class="navbar">
+        <a href="\">Importer des factures</a>
+        <a href="\afficher_tableau_synthese\">Tableau Synthèse</a>
+        <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
+    </div>
+
+    <div class="content">
+        <h1>Connexion</h1>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">Se connecter</button>
+        </form>
+    </div>
+</body>
+</html>

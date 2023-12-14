@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from .methods import *
 import pandas as pd
@@ -7,10 +8,12 @@ from datetime import datetime
 
 # Create your views here.
 
+@login_required
 def index(request):
     return render(request,'index.html')
 
 
+@login_required
 def upload_factures(request):
     if request.method == 'POST':
         factures = request.FILES.getlist('factures')
@@ -54,6 +57,7 @@ def upload_factures(request):
     return render(request, 'index.html')
 
 
+@login_required
 def upload_catalogue_excel(request):
     if request.method == 'POST':
 
@@ -105,7 +109,8 @@ def upload_catalogue_excel(request):
 
     return render(request, 'index_upload_catalogue.html')
 
-    
+
+@login_required
 def afficher_tableau_synthese(request):
 
     #Générer le tableau dans methods
