@@ -22,9 +22,9 @@ python3 -m virtualenv venv
 source venv/bin/activate
 
 pip3 install -r requirements.txt
-mkdir media/ && mkdir logs/ && touch logs/main.log && chmod -R g+w logs/
+mkdir media/ && mkdir media/factures && mkdir logs/ && touch logs/main.log && chmod -R g+w logs/
 sed -i 's/DEBUG = True/DEBUG = False/g' AppMichelet/settings.py
-sed -i "s/ALLOWED_HOSTS = \[.*\]/ALLOWED_HOSTS = \[146.59.196.220, controle-remises.appmichelet.ovh\]/g" AppMichelet/settings.py
+sed -i "s/ALLOWED_HOSTS = \[.*\]/ALLOWED_HOSTS = \[\"146.59.196.220\", \"controle-remises.appmichelet.ovh\"\]/g" AppMichelet/settings.py
 python3 manage.py collectstatic
 
 chown -R "$USER":www-data .
