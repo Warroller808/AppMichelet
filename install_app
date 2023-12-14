@@ -1,0 +1,74 @@
+#!/bin/bash
+set -e
+
+if [[ $(id -u) -ne 0 ]]; then echo "Please run as root"; exit 1; fi
+
+USER=$(id -un 1000)
+
+timedatectl set-timezone Europe/Paris
+
+apt update
+apt install -y git python3-pip apache2 libapache2-mod-wsgi-py3 snapd
+snap install core; sudo snap refresh core
+snap install --classic certbot
+ln -s /snap/bin/certbot /usr/bin/certbot
+
+service apache2 stop
+
+cd /var/www/AppMichelet || exit
+
+python3 -m pip install virtualenv
+python3 -m virtualenv venv
+source venv/bin/activate
+
+pip3 install -r requirements.txt
+mkdir media/ && mkdir logs/ && touch logs/main.log && chmod -R g+w logs/
+sed -i 's/DEBUG = True/DEBUG = False/g' AppMichelet/settings.py
+sed -i "s/ALLOWED_HOSTS = \[.*\]/ALLOWED_HOSTS = \[146.59.196.220, controle-remises.appmichelet.ovh\]/g" AppMichelet/settings.py
+python3 manage.py collectstatic
+
+chown -R "$USER":www-data .
+
+echo "source /var/www/AppMichelet/venv/bin/activate" >> "/home/$USER/.bashrc"
+echo "
+ServerName controle-remises.appmichelet.ovh
+
+WSGIDaemonProcess AppMichelet processes=4 python-home=/var/www/AppMichelet/venv python-path=/var/www/AppMichelet
+WSGIProcessGroup AppMichelet
+WSGIScriptAlias / /var/www/AppMichelet/AppMichelet/wsgi.py
+
+<VirtualHost *:80>
+    ErrorLog \${APACHE_LOG_DIR}/AppMichelet-error.log
+    CustomLog \${APACHE_LOG_DIR}/AppMichelet-access.log combined
+
+    Alias /robots.txt /var/www/AppMichelet/static/robots.txt
+    Alias /favicon.ico /var/www/AppMichelet/static/favicon.ico
+    Alias /static/ /var/www/AppMichelet/static/
+    Alias /media/ /var/www/AppMichelet/media/
+
+    <Directory /var/www/AppMichelet/AppMichelet>
+        <Files wsgi.py>
+            Require all granted
+        </Files>
+    </Directory>
+
+    <Directory /var/www/AppMichelet/static>
+        Require all granted
+    </Directory>
+
+    <Directory /var/www/AppMichelet/media>
+        Require all granted
+    </Directory>
+</VirtualHost>
+" > /etc/apache2/sites-available/AppMichelet.conf
+
+a2dissite 000-default.conf
+a2ensite AppMichelet
+
+certbot --apache -d "controle-remises.appmichelet.ovh"
+
+python3 manage.py makemigrations
+python3 manage.py makemigrations main
+python3 manage.py migrate
+service apache2 start
+apachectl graceful
