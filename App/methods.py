@@ -44,7 +44,7 @@ def extract_data(facture_path, facture_name):
         for num_page in range(len(pdf.pages)):
             page = pdf.pages[num_page]
 
-            #print(f'{facture_name} - {num_page}')
+            print(f'{facture_name} - {num_page}')
 
             texte_page = page.extract_text()
             tables_page = []
