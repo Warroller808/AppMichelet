@@ -5,8 +5,11 @@ from .methods import *
 import pandas as pd
 from .models import Produit_catalogue
 from datetime import datetime
+import logging
 
 # Create your views here.
+
+logger = logging.getLogger('App')
 
 @login_required
 def index(request):
@@ -39,6 +42,8 @@ def upload_factures(request):
                 events.extend(events_save)
 
             events.append("Importation terminée.")
+            logger.debug("Importation terminée.")
+            logger.debug(events)
 
             # On envoie les infos extraites au template HTML
             return render(request, 'index.html', {
@@ -128,10 +133,14 @@ def upload_catalogue_excel(request):
                     produit_catalogue.save()
                     events.append(f'Le produit {code} a été ajouté')
                     
-            events.append("Importation réussie !")
+            events.append("Importation du catalogue réussie !")
+            logger.debug("Importation du catalogue réussie !")
 
         except Exception as e:
             events.append(f'Erreur sur le produit {code}: {str(e)}')
+            logger.debug(f'Erreur sur le produit {code}: {str(e)}')
+
+        logger.debug(events)
 
         return render(request, 'index_upload_catalogue.html', {'events': events})
 

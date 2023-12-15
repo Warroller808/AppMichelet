@@ -8,9 +8,11 @@ import json
 from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from decimal import Decimal
+import logging
+import traceback
 
 BASE_DIR = settings.BASE_DIR
-
+logger = logging.getLogger('App')
 
 def handle_uploaded_facture(facture):
     dossier_sauvegarde = os.path.join(BASE_DIR, 'media/factures')
@@ -241,13 +243,7 @@ def generer_tableau_synthese():
     # if categoriser():
     #     print("Catégorisation effectuée")
 
-    data = (
-        Achat.objects
-        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee', 'categorie')
-        .annotate(total_ht_hors_remise=Sum('montant_ht_hors_remise'), remise_theorique_totale=Sum('remise_theorique_totale'))
-    )
-
+    tableau_synthese = []
     data_dict = {}
     categories = [
         '<450€ tva 2,1% TOTAL HT', '<450€ tva 2,1% REMISE HT',
@@ -262,107 +258,121 @@ def generer_tableau_synthese():
         'LPP TOTAL HT', 'LPP REMISE HT',
     ]
 
-    # Pour contrôle des produits non catégorisés
-    #' TOTAL HT', ' REMISE HT'
+    try:
 
-    for entry in data:
-        mois_annee = f"{entry['mois']}/{entry['annee']}"
-        categorie = entry['categorie']
-        total_ht_hors_remise = entry['total_ht_hors_remise']
-        remise_theorique_totale = entry['remise_theorique_totale']
+        data = (
+            Achat.objects
+            .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+            .values('mois', 'annee', 'categorie')
+            .annotate(total_ht_hors_remise=Sum('montant_ht_hors_remise'), remise_theorique_totale=Sum('remise_theorique_totale'))
+        )
 
-        # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
-        if mois_annee not in data_dict:
-            data_dict[mois_annee] = {}
+        
 
-        # Remplissage du dictionnaire avec les valeurs
-        data_dict[mois_annee][f"{categorie} TOTAL HT"] = total_ht_hors_remise
-        data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
+        # Pour contrôle des produits non catégorisés
+        #' TOTAL HT', ' REMISE HT'
 
-    tableau_synthese = []
-    i = 0
+        for entry in data:
+            mois_annee = f"{entry['mois']}/{entry['annee']}"
+            categorie = entry['categorie']
+            total_ht_hors_remise = entry['total_ht_hors_remise']
+            remise_theorique_totale = entry['remise_theorique_totale']
 
-    for mois_annee, values in data_dict.items():
-        tableau_synthese.append([mois_annee])
-        for cat in categories:
-            found = False
-            for categorie, montant in values.items():
-                if categorie == cat:
-                    tableau_synthese[i].append(round(montant, 2))
-                    found = True
-            if not found:
-                tableau_synthese[i].append(0.00)
-        i += 1
+            # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
+            if mois_annee not in data_dict:
+                data_dict[mois_annee] = {}
 
-    tableau_synthese = quicksort_tableau(tableau_synthese)
+            # Remplissage du dictionnaire avec les valeurs
+            data_dict[mois_annee][f"{categorie} TOTAL HT"] = total_ht_hors_remise
+            data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
 
-    #LIGNES DE TOTAUX PAR ANNEE
+        i = 0
 
-    ligne = 0
-    ligne_annee_precedente = -1
+        for mois_annee, values in data_dict.items():
+            tableau_synthese.append([mois_annee])
+            for cat in categories:
+                found = False
+                for categorie, montant in values.items():
+                    if categorie == cat:
+                        tableau_synthese[i].append(round(montant, 2))
+                        found = True
+                if not found:
+                    tableau_synthese[i].append(0.00)
+            i += 1
 
-    while ligne < len(tableau_synthese):
-        print(f'ligne: {ligne}')
-        if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "" and tableau_synthese[ligne - 1][0] != "TOTAL":
-            
-            traitement = False
+        tableau_synthese = quicksort_tableau(tableau_synthese)
 
-            if ligne == 0:
-                if ligne == len(tableau_synthese) - 1:
+        #LIGNES DE TOTAUX PAR ANNEE
+
+        ligne = 0
+        ligne_annee_precedente = -1
+
+        while ligne < len(tableau_synthese):
+            print(f'ligne: {ligne}')
+            if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "" and tableau_synthese[ligne - 1][0] != "TOTAL":
+                
+                traitement = False
+
+                if ligne == 0:
+                    if ligne == len(tableau_synthese) - 1:
+                        traitement = True
+                        # on simule l'avance sur la prochaine ligne
+                        ligne += 1
+                elif convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
+                    traitement = True
+                    print("comparaison de dates")
+                elif ligne == len(tableau_synthese) - 1:
                     traitement = True
                     # on simule l'avance sur la prochaine ligne
                     ligne += 1
-            elif convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
-                traitement = True
-                print("comparaison de dates")
-            elif ligne == len(tableau_synthese) - 1:
-                traitement = True
-                # on simule l'avance sur la prochaine ligne
-                ligne += 1
-                print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
-            
-            print(traitement)
-            if traitement:
-                # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
-                # Ligne de totaux initialisée avec un vide pour la colonne mois annee
-                totaux = [f'TOTAL {convert_date(tableau_synthese[ligne - 1][0]).year}']
-                for colonne in range(1, len(tableau_synthese[0])):
-                    total = Decimal(0)
-                    for ligne_annee in range(ligne_annee_precedente + 1, ligne):
-                        total += Decimal(tableau_synthese[ligne_annee][colonne])
-                    totaux.append(round(total, 2))
+                    print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+                
+                print(traitement)
+                if traitement:
+                    # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
+                    # Ligne de totaux initialisée avec un vide pour la colonne mois annee
+                    totaux = [f'TOTAL {convert_date(tableau_synthese[ligne - 1][0]).year}']
+                    for colonne in range(1, len(tableau_synthese[0])):
+                        total = Decimal(0)
+                        for ligne_annee in range(ligne_annee_precedente + 1, ligne):
+                            total += Decimal(tableau_synthese[ligne_annee][colonne])
+                        totaux.append(round(total, 2))
 
-                print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
+                    print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
-                #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
-                pourcentages = ['']
-                for colonne in range(1, len(tableau_synthese[0])):
-                    if "REMISE" in categories[colonne - 1]:
-                        if totaux[colonne - 1] != 0:
-                            pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+                    #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
+                    pourcentages = ['']
+                    for colonne in range(1, len(tableau_synthese[0])):
+                        if "REMISE" in categories[colonne - 1]:
+                            if totaux[colonne - 1] != 0:
+                                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+                            else:
+                                pourcentages.append('NA')
                         else:
-                            pourcentages.append('NA')
-                    else:
-                        pourcentages.append('')
+                            pourcentages.append('')
 
-                tableau_synthese.insert(ligne, totaux)
-                tableau_synthese.insert(ligne + 1, pourcentages)
-                print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
-                ligne_annee_precedente = ligne + 1
-                ligne += 2
+                    tableau_synthese.insert(ligne, totaux)
+                    tableau_synthese.insert(ligne + 1, pourcentages)
+                    print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
+                    ligne_annee_precedente = ligne + 1
+                    ligne += 2
+                else:
+                    ligne += 1
             else:
                 ligne += 1
-        else:
-            ligne += 1
 
-        print(len(tableau_synthese))
-        print(ligne)
+            print(len(tableau_synthese))
+            print(ligne)
 
 
-    print(datetime.now())
-    print(tableau_synthese)
+        print(datetime.now())
+        print(tableau_synthese)
 
-    return tableau_synthese, categories
+        return tableau_synthese, categories
+    
+    except Exception as e:
+        logger.debug(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback}")
+        return tableau_synthese, categories
 
 
 def generer_tableau_generiques():

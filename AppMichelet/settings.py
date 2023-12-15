@@ -89,16 +89,26 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
-        'file': {
+        'Django_file': {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / "logs" / "main.log",
         },
+        'App_file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / "logs" / "debug.log",
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['file'],
+            'handlers': ['Django_file'],
             'level': 'ERROR',
+            'propagate': True,
+        },
+        'App': {
+            'handlers': ['App_file'],
+            'level': 'DEBUG',
             'propagate': True,
         },
     },
