@@ -2,6 +2,7 @@ import re
 import logging
 from .models import Format_facture, Produit_catalogue
 import json
+from datetime import datetime
 
 
 logger = logging.getLogger(__name__)
@@ -147,77 +148,79 @@ def process_tables(format, tables_page):
                 if re.match(re.compile(format_facture.regex_ligne_table), ligne_sans_none[0]):
 
                         donnees_ligne = []
+                        multiplicateur = 1 if format_facture.format != "AVOIR CERP" else -1
 
-                        #try:
+                        try:
 
-                        if format_facture.indice_code_produit != -1:
-                            code = ligne_sans_none[format_facture.indice_code_produit]
-                            donnees_ligne.append(''.join(caractere for caractere in code if not caractere.isalpha() and not caractere.isspace()))
-                        else: donnees_ligne.append("")
+                            if format_facture.indice_code_produit != -1:
+                                code = ligne_sans_none[format_facture.indice_code_produit]
+                                donnees_ligne.append(''.join(caractere for caractere in code if not caractere.isalpha() and not caractere.isspace()))
+                            else: donnees_ligne.append("")
 
-                        if format_facture.indice_designation != -1:
-                            donnees_ligne.append(ligne_sans_none[format_facture.indice_designation])
-                        else: donnees_ligne.append("")
+                            if format_facture.indice_designation != -1:
+                                donnees_ligne.append(ligne_sans_none[format_facture.indice_designation])
+                            else: donnees_ligne.append("")
 
-                        if format_facture.indice_nb_boites != -1:
-                            if ligne_sans_none[format_facture.indice_nb_boites] != "":
-                                donnees_ligne.append(int(ligne_sans_none[format_facture.indice_nb_boites]))
+                            if format_facture.indice_nb_boites != -1:
+                                if ligne_sans_none[format_facture.indice_nb_boites] != "":
+                                    donnees_ligne.append(int(ligne_sans_none[format_facture.indice_nb_boites]))
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
 
-                        if format_facture.indice_prix_unitaire_ht != -1:
-                            if ligne_sans_none[format_facture.indice_prix_unitaire_ht] != "":
-                                donnees_ligne.append(float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")))
+                            if format_facture.indice_prix_unitaire_ht != -1:
+                                if ligne_sans_none[format_facture.indice_prix_unitaire_ht] != "":
+                                    donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")))
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
 
-                        if format_facture.indice_prix_unitaire_remise_ht != -1:
-                            if ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht] != "":
-                                donnees_ligne.append(float(ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht].replace(",",".").replace(" ","")))
+                            if format_facture.indice_prix_unitaire_remise_ht != -1:
+                                if ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht] != "":
+                                    donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht].replace(",",".").replace(" ","")))
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
 
-                        if format_facture.indice_remise_pourcent != -1:
-                            if ligne_sans_none[format_facture.indice_remise_pourcent] != "":
-                                if float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")) <= 1:
-                                    donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")))
-                                else:
-                                    donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")) / 100)
+                            if format_facture.indice_remise_pourcent != -1:
+                                if ligne_sans_none[format_facture.indice_remise_pourcent] != "":
+                                    if float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")) <= 1:
+                                        donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")))
+                                    else:
+                                        donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")) / 100)
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
 
-                        if format_facture.indice_montant_ht_hors_remise != -1:
-                            if ligne_sans_none[format_facture.indice_montant_ht_hors_remise] != "":
-                                donnees_ligne.append(float(ligne_sans_none[format_facture.indice_montant_ht_hors_remise].replace(",",".").replace(" ","")))
+                            if format_facture.indice_montant_ht_hors_remise != -1:
+                                if ligne_sans_none[format_facture.indice_montant_ht_hors_remise] != "":
+                                    donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_montant_ht_hors_remise].replace(",",".").replace(" ","")))
+                                else: donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")) * int(ligne_sans_none[format_facture.indice_nb_boites]))
+
+                            if format_facture.indice_montant_ht != -1:
+                                if ligne_sans_none[format_facture.indice_montant_ht] != "":
+                                    donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_montant_ht].replace(",",".").replace(" ","")))
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: 
-                            donnees_ligne.append(float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")) * int(ligne_sans_none[format_facture.indice_nb_boites]))
 
-                        if format_facture.indice_montant_ht != -1:
-                            if ligne_sans_none[format_facture.indice_montant_ht] != "":
-                                donnees_ligne.append(float(ligne_sans_none[format_facture.indice_montant_ht].replace(",",".").replace(" ","")))
+                            if format_facture.indice_tva != -1:
+                                tva = ligne_sans_none[format_facture.indice_tva]
+                                tva = float(tva.replace(",",".").replace(" ","").replace("%","")) / 100
+
+                                if tva == 0.021 or tva == 0.055 or tva == 0.1 or tva == 0.2:
+                                    donnees_ligne.append(tva)
+                                elif tva == 0.01 or tva == 0.02 or tva == 0.03 or tva == 0.04 or tva == 0.05:
+                                    donnees_ligne.append(correspondance_tva_cerp(tva))
+                                else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
 
-                        if format_facture.indice_tva != -1:
-                            tva = ligne_sans_none[format_facture.indice_tva]
-                            tva = float(tva.replace(",",".").replace(" ","").replace("%","")) / 100
+                            for donnee in donnees_ligne:
+                                print(donnee)
 
-                            if tva == 0.021 or tva == 0.055 or tva == 0.1 or tva == 0.2:
-                                donnees_ligne.append(tva)
-                            elif tva == 0.01 or tva == 0.02 or tva == 0.03 or tva == 0.04 or tva == 0.05:
-                                donnees_ligne.append(correspondance_tva_cerp(tva))
-                            else: donnees_ligne.append(0)
-                        else: donnees_ligne.append(0)
+                            processed_table.append(donnees_ligne)
+                            i+=1
 
-                        for donnee in donnees_ligne:
-                            print(donnee)
-
-                        processed_table.append(donnees_ligne)
-                        i+=1
-
-                        #except:
-                            #continue
+                        except Exception as e:
+                            events.append(f"Erreur lors du traitement du produit {ligne_sans_none[format_facture.indice_code_produit]} - Erreur {e}")
+                            continue
 
         return processed_table, events
     
@@ -325,11 +328,16 @@ def categoriser_achat(fournisseur, tva, prix_unitaire_ht, coalia, generique):
     return new_categorie
 
 
-def quicksort(list_of_lists):
+def convert_date(date_str):
+    return datetime.strptime(date_str, "%m/%Y")
+
+
+def quicksort_tableau(list_of_lists):
     if len(list_of_lists) <= 1:
         return list_of_lists
     else:
         pivot = list_of_lists[0]
-        less = [x for x in list_of_lists[1:] if x[0] < pivot[0]]
-        greater = [x for x in list_of_lists[1:] if x[0] >= pivot[0]]
-        return quicksort(less) + [pivot] + quicksort(greater)
+        pivot_date = convert_date(pivot[0])
+        less = [x for x in list_of_lists[1:] if convert_date(x[0]) < pivot_date]
+        greater = [x for x in list_of_lists[1:] if convert_date(x[0]) >= pivot_date]
+        return quicksort_tableau(less) + [pivot] + quicksort_tableau(greater)

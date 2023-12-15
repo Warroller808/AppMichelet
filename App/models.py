@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 # Create your models here.
 
 class Produit_catalogue(models.Model):
-    code = models.CharField("CODE", max_length=128, primary_key=True)
+    code = models.CharField("CODE", max_length=128)
     annee = models.IntegerField("ANNEE", default=int(datetime.now().year))
     designation = models.CharField("DESIGNATION", max_length=128, blank=True, default='')
     type = models.CharField("TYPE", max_length=128, default="")
@@ -23,7 +23,7 @@ class Produit_catalogue(models.Model):
         unique_together = ('code', 'annee')
     
 class Achat(models.Model):
-    produit = models.ForeignKey(Produit_catalogue, on_delete=models.CASCADE)
+    produit = models.CharField("PRODUIT", max_length=128, blank=False, default='')
     designation = models.CharField("DESIGNATION", max_length=128, blank=True, default='')
     nb_boites = models.IntegerField("NB_BOITES",default=0)
     prix_unitaire_ht = models.DecimalField("PRIX_UNITAIRE_HT", max_digits=15, decimal_places=4, default=0.00)

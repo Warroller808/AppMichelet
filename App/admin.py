@@ -8,7 +8,7 @@ class Produit_catalogueAdmin(admin.ModelAdmin):
 
 
 class AchatAdmin(admin.ModelAdmin):
-    search_fields = ['produit__code', 'designation', 'date', 'categorie']
+    search_fields = ['produit', 'designation', 'numero_facture', 'date', 'categorie']
 
 
 class Format_factureAdmin(admin.ModelAdmin):

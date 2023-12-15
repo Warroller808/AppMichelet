@@ -7,11 +7,11 @@ from datetime import datetime
 import json
 from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
-from celery import shared_task
+from decimal import Decimal
 
 BASE_DIR = settings.BASE_DIR
 
-@shared_task
+
 def handle_uploaded_facture(facture):
     dossier_sauvegarde = os.path.join(BASE_DIR, 'media/factures')
 
@@ -29,7 +29,7 @@ def handle_uploaded_facture(facture):
 
     return chemin_sauvegarde, facture.name
 
-@shared_task
+
 def extract_data(facture_path, facture_name):
     with pdfplumber.open(facture_path) as pdf:
 
@@ -47,6 +47,8 @@ def extract_data(facture_path, facture_name):
             texte_page = page.extract_text()
             tables_page = []
             tables_page_2 = page.extract_tables()
+
+            #print(texte_page)
 
             try:
                 format, fournisseur = extraire_format_fournisseur(texte_page)
@@ -77,6 +79,8 @@ def extract_data(facture_path, facture_name):
                     table_donnees.append(processed_table[ligne])
 
                 table_produits.extend(produits)
+                if events_achats:
+                    events_achats.insert(0, facture_name)
                 events.extend(events_achats)
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
@@ -85,7 +89,7 @@ def extract_data(facture_path, facture_name):
             
     return table_donnees, table_produits, events, texte_page_tout, tables_page_toutes, tables_page_2
 
-@shared_task
+
 def save_data(table_donnees):
     #Sauvegarde les données d'une facture
     events = []
@@ -249,14 +253,17 @@ def generer_tableau_synthese():
         '<450€ tva 2,1% TOTAL HT', '<450€ tva 2,1% REMISE HT',
         '>450€ <1500€ tva 2,1% TOTAL HT', '>450€ <1500€ tva 2,1% REMISE HT',
         '>1500€ tva 2,1% TOTAL HT', '>1500€ tva 2,1% REMISE HT',
+        'GENERIQUE TOTAL HT', 'GENERIQUE REMISE HT',
+        'MARCHE PRODUITS TOTAL HT', 'MARCHE PRODUITS REMISE HT',
+        'UPP TOTAL HT', 'UPP REMISE HT',
         'COALIA TOTAL HT', 'COALIA REMISE HT',
         'PHARMAT TOTAL HT', 'PHARMAT REMISE HT',
-        'GENERIQUE TOTAL HT', 'GENERIQUE REMISE HT',
         'PARAPHARMACIE TOTAL HT', 'PARAPHARMACIE REMISE HT',
         'LPP TOTAL HT', 'LPP REMISE HT',
-        'UPP TOTAL HT', 'UPP REMISE HT',
-        ' TOTAL HT', ' REMISE HT'
     ]
+
+    # Pour contrôle des produits non catégorisés
+    #' TOTAL HT', ' REMISE HT'
 
     for entry in data:
         mois_annee = f"{entry['mois']}/{entry['annee']}"
@@ -287,7 +294,70 @@ def generer_tableau_synthese():
                 tableau_synthese[i].append(0.00)
         i += 1
 
-    tableau_synthese = quicksort(tableau_synthese)
+    tableau_synthese = quicksort_tableau(tableau_synthese)
+
+    #LIGNES DE TOTAUX PAR ANNEE
+
+    ligne = 0
+    ligne_annee_precedente = -1
+
+    while ligne < len(tableau_synthese):
+        print(f'ligne: {ligne}')
+        if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "" and tableau_synthese[ligne - 1][0] != "TOTAL":
+            
+            traitement = False
+
+            if ligne == 0:
+                if ligne == len(tableau_synthese) - 1:
+                    traitement = True
+                    # on simule l'avance sur la prochaine ligne
+                    ligne += 1
+            elif convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
+                traitement = True
+                print("comparaison de dates")
+            elif ligne == len(tableau_synthese) - 1:
+                traitement = True
+                # on simule l'avance sur la prochaine ligne
+                ligne += 1
+                print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+            
+            print(traitement)
+            if traitement:
+                # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
+                # Ligne de totaux initialisée avec un vide pour la colonne mois annee
+                totaux = [f'TOTAL {convert_date(tableau_synthese[ligne - 1][0]).year}']
+                for colonne in range(1, len(tableau_synthese[0])):
+                    total = Decimal(0)
+                    for ligne_annee in range(ligne_annee_precedente + 1, ligne):
+                        total += Decimal(tableau_synthese[ligne_annee][colonne])
+                    totaux.append(round(total, 2))
+
+                print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
+
+                #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
+                pourcentages = ['']
+                for colonne in range(1, len(tableau_synthese[0])):
+                    if "REMISE" in categories[colonne - 1]:
+                        if totaux[colonne - 1] != 0:
+                            pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+                        else:
+                            pourcentages.append('NA')
+                    else:
+                        pourcentages.append('')
+
+                tableau_synthese.insert(ligne, totaux)
+                tableau_synthese.insert(ligne + 1, pourcentages)
+                print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
+                ligne_annee_precedente = ligne + 1
+                ligne += 2
+            else:
+                ligne += 1
+        else:
+            ligne += 1
+
+        print(len(tableau_synthese))
+        print(ligne)
+
 
     print(datetime.now())
     print(tableau_synthese)
@@ -295,8 +365,37 @@ def generer_tableau_synthese():
     return tableau_synthese, categories
 
 
+def generer_tableau_generiques():
+    
+    # data = (
+    #     Produit_catalogue.objects
+    #     .filter(annee=your_desired_year)  # Remplacez your_desired_year par l'année souhaitée
+    #     .values('fournisseur_generique')
+    #     .annotate(
+    #         somme_montants_ht=Sum(
+    #             ExpressionWrapper(
+    #                 F('achat__montant_ht_hors_remise'),
+    #                 output_field=DecimalField(),
+    #             )
+    #         ),
+    #         somme_remises_ht=Sum(
+    #             ExpressionWrapper(
+    #                 F('achat__remise_theorique_totale'),
+    #                 output_field=DecimalField(),
+    #             )
+    #         )
+    #     )
+    #     .filter(achat__code_produit=F('code_produit'), achat__date__year=your_desired_year)
+    # )
+    # tableau_generiques = []
+    # for entry in data:
+    #     print(entry)
+
+    return 1
+
+
 def categoriser():
-    #try:
+    try:
         achats = Achat.objects.all()
         for entry in achats:
             if entry.categorie == "":
@@ -334,5 +433,5 @@ def categoriser():
 
         return True
     
-    #except:
+    except:
         return False
