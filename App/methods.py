@@ -12,7 +12,7 @@ import logging
 import traceback
 
 BASE_DIR = settings.BASE_DIR
-logger = logging.getLogger('my_app')
+logger = logging.getLogger(__name__)
 
 def handle_uploaded_facture(facture):
     dossier_sauvegarde = os.path.join(BASE_DIR, 'media/factures')
@@ -62,14 +62,14 @@ def extract_data(facture_path, facture_name):
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
 
+                date = datetime.strptime(extraire_date(format, texte_page), '%d/%m/%Y').date()
+                numero_facture = extraire_numero_facture(format, texte_page)
+
             except:
                 events.append(f'Format de facture non reconnu, page {num_page + 1}')
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
                 continue
-        
-            date = datetime.strptime(extraire_date(format, texte_page), '%d/%m/%Y').date()
-            numero_facture = extraire_numero_facture(format, texte_page)
 
             # On vérifie si la facture a déjà été traitée, si oui on prévient
             if not Achat.objects.filter(numero_facture=numero_facture):
@@ -364,7 +364,7 @@ def generer_tableau_synthese():
         return tableau_synthese, categories
     
     except Exception as e:
-        logger.debug(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback}")
+        logger.error(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback}")
         return tableau_synthese, categories
 
 

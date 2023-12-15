@@ -9,7 +9,7 @@ import logging
 
 # Create your views here.
 
-logger = logging.getLogger('my_app')
+logger = logging.getLogger(__name__)
 
 @login_required
 def index(request):
@@ -42,8 +42,8 @@ def upload_factures(request):
                 events.extend(events_save)
 
             events.append("Importation terminée.")
-            logger.debug("Importation terminée.")
-            logger.debug(events)
+            logger.info("Importation terminée.")
+            logger.info(events)
 
             # On envoie les infos extraites au template HTML
             return render(request, 'index.html', {
@@ -134,13 +134,13 @@ def upload_catalogue_excel(request):
                     events.append(f'Le produit {code} a été ajouté')
                     
             events.append("Importation du catalogue réussie !")
-            logger.debug("Importation du catalogue réussie !")
+            logger.info("Importation du catalogue réussie !")
 
         except Exception as e:
             events.append(f'Erreur sur le produit {code}: {str(e)}')
-            logger.debug(f'Erreur sur le produit {code}: {str(e)}')
+            logger.error(f'Erreur sur le produit {code}: {str(e)}')
 
-        logger.debug(events)
+        logger.info(events)
 
         return render(request, 'index_upload_catalogue.html', {'events': events})
 

@@ -87,38 +87,63 @@ DATABASES = {
 
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': False,
-    'handlers': {
-        'Django_file': {
-            'level': 'ERROR',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / "logs" / "main.log",
+    'disable_existing_loggers': True,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)s - %(message)s'
         },
-        'my_app_file': {
-            'level': 'DEBUG',
-            'class': 'logging.FileHandler',
-            'filename': BASE_DIR / "logs" / "debug.log",
+    },
+    'filters': {
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'default': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs/main.log'),
+            'maxBytes': 1024 * 1024 * 20,  # 20 MB
+            'backupCount': 5,
+            'formatter': 'standard',
+            'encoding': 'UTF-8',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'filters': ['require_debug_true'],
+            'formatter': 'standard',
+        },
+        'null': {
+            'class': 'logging.NullHandler',
         },
     },
     'loggers': {
-        'django': {
-            'handlers': ['Django_file'],
+        '': {
+            'handlers': ['default', 'console'],
+            'level': 'WARNING',
+        },
+        'django.request': {
             'level': 'ERROR',
-            'propagate': True,
+            'propagate': False
         },
-        'my_app': {
-            'handlers': ['my_app_file'],
-            'level': 'DEBUG',
-            'propagate': True,
+        'django.security.DisallowedHost': {
+            'handlers': ['null'],
+            'propagate': False
         },
-    },
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-            'encoding': 'utf-8',  # Add this line
-            },
-    },
+        'django': {
+            'level': 'WARNING',
+            'propagate': True
+        },
+        'main': {
+            'handlers': ['default', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'asyncio': {
+            'propagate': False
+        },
+    }
 }
 
 
