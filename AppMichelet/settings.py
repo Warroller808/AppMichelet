@@ -94,7 +94,7 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / "logs" / "main.log",
         },
-        'App_file': {
+        'my_app_file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
             'filename': BASE_DIR / "logs" / "debug.log",
@@ -106,13 +106,19 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': True,
         },
-        'App': {
-            'handlers': ['App_file'],
+        'my_app': {
+            'handlers': ['my_app_file'],
             'level': 'DEBUG',
             'propagate': True,
         },
     },
-    'encoding': 'utf-8',
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+            'encoding': 'utf-8',  # Add this line
+            },
+    },
 }
 
 
@@ -151,11 +157,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = 'static/'
-STATIC_ROOT = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-LOGIN_REDIRECT_URL = '/'

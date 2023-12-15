@@ -12,7 +12,7 @@ import logging
 import traceback
 
 BASE_DIR = settings.BASE_DIR
-logger = logging.getLogger('App')
+logger = logging.getLogger('my_app')
 
 def handle_uploaded_facture(facture):
     dossier_sauvegarde = os.path.join(BASE_DIR, 'media/factures')

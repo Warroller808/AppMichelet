@@ -9,7 +9,7 @@ import logging
 
 # Create your views here.
 
-logger = logging.getLogger('App')
+logger = logging.getLogger('my_app')
 
 @login_required
 def index(request):
