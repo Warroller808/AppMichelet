@@ -44,7 +44,7 @@ def extract_data(facture_path, facture_name):
         for num_page in range(len(pdf.pages)):
             page = pdf.pages[num_page]
 
-            print(f'{facture_name} - {num_page}')
+            #print(f'{facture_name} - {num_page}')
 
             texte_page = page.extract_text()
             tables_page = []
@@ -308,7 +308,7 @@ def generer_tableau_synthese():
         ligne_annee_precedente = -1
 
         while ligne < len(tableau_synthese):
-            print(f'ligne: {ligne}')
+            #print(f'ligne: {ligne}')
             if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "" and tableau_synthese[ligne - 1][0] != "TOTAL":
                 
                 traitement = False
@@ -320,14 +320,14 @@ def generer_tableau_synthese():
                         ligne += 1
                 elif convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
                     traitement = True
-                    print("comparaison de dates")
+                    #print("comparaison de dates")
                 elif ligne == len(tableau_synthese) - 1:
                     traitement = True
                     # on simule l'avance sur la prochaine ligne
                     ligne += 1
-                    print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+                    #print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
                 
-                print(traitement)
+                #print(traitement)
                 if traitement:
                     # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
                     # Ligne de totaux initialisée avec un vide pour la colonne mois annee
@@ -338,7 +338,7 @@ def generer_tableau_synthese():
                             total += Decimal(tableau_synthese[ligne_annee][colonne])
                         totaux.append(round(total, 2))
 
-                    print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
+                    #print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
                     #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
                     pourcentages = ['']
@@ -353,20 +353,13 @@ def generer_tableau_synthese():
 
                     tableau_synthese.insert(ligne, totaux)
                     tableau_synthese.insert(ligne + 1, pourcentages)
-                    print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
+                    #print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
                     ligne_annee_precedente = ligne + 1
                     ligne += 2
                 else:
                     ligne += 1
             else:
                 ligne += 1
-
-            print(len(tableau_synthese))
-            print(ligne)
-
-
-        print(datetime.now())
-        print(tableau_synthese)
 
         return tableau_synthese, categories
     

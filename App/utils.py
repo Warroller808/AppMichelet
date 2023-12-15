@@ -89,7 +89,7 @@ def pre_traitement_table(format_facture: Format_facture, table_principale):
                         ligne[1]
                     ])
             elif ligne[0] == "" and ligne[1] is None:
-                print(ligne)
+                #print(ligne)
                 #on est dans le bloc ventes
                 table_pretraitee[i].extend([
                     ligne[2],
@@ -212,8 +212,8 @@ def process_tables(format, tables_page):
                                 else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
 
-                            for donnee in donnees_ligne:
-                                print(donnee)
+                            # for donnee in donnees_ligne:
+                            #     print(donnee)
 
                             processed_table.append(donnees_ligne)
                             i+=1
