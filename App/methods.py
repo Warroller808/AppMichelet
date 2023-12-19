@@ -86,7 +86,7 @@ def extract_data(facture_path, facture_name):
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
             else:
-                events.append(f'La facture {numero_facture}, page {num_page +1} a déjà été traitée par le passé, elle n\'a donc pas été traitée à nouveau')
+                events.append(f'La facture {facture_name} - {numero_facture}, page {num_page +1} a déjà été traitée par le passé, elle n\'a donc pas été traitée à nouveau')
             
     return table_donnees, table_produits, events, texte_page_tout, tables_page_toutes, tables_page_2
 
