@@ -97,6 +97,7 @@ LOGGING = {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOGGING_DIR, 'main.log'),
+            'encoding': 'utf-8',
         },
     },
     'root': {
