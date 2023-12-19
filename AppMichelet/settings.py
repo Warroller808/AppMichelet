@@ -103,6 +103,7 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOGGING_DIR, 'main.log'),
             'encoding': 'utf-8',
+            'formatter': 'standard',
         },
     },
     'root': {
