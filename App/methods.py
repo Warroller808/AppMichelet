@@ -307,15 +307,15 @@ def generer_tableau_synthese():
                         traitement = True
                         # on simule l'avance sur la prochaine ligne
                         ligne += 1
-                elif tableau_synthese[ligne - 1][0] != "":
-                    if convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
-                        traitement = True
-                        print("comparaison de dates")
                 elif ligne == len(tableau_synthese) - 1:
                     traitement = True
                     # on simule l'avance sur la prochaine ligne
                     ligne += 1
                     print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+                elif tableau_synthese[ligne - 1][0] != "":
+                    if convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
+                        traitement = True
+                        print("comparaison de dates")
                 else:
                     print("ne correspond à aucun cas")
                 
