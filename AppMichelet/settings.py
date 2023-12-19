@@ -94,7 +94,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'handlers': {
         'file': {
-            'level': 'ERROR',  # Niveau minimum pour enregistrer les messages
+            'level': 'ERROR',
             'class': 'logging.FileHandler',
             'filename': os.path.join(LOGGING_DIR, 'main.log'),
         },
