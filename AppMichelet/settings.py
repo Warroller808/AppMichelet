@@ -18,6 +18,10 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+LOGGING_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOGGING_DIR):
+    os.makedirs(LOGGING_DIR)
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.1/howto/deployment/checklist/
@@ -87,63 +91,21 @@ DATABASES = {
 
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': True,
-    'formatters': {
-        'standard': {
-            'format': '%(asctime)s [%(levelname)s] %(name)s.%(funcName)s:%(lineno)s - %(message)s'
-        },
-    },
-    'filters': {
-        'require_debug_true': {
-            '()': 'django.utils.log.RequireDebugTrue',
-        },
-    },
+    'disable_existing_loggers': False,
     'handlers': {
-        'default': {
-            'level': 'INFO',
-            'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs/main.log'),
-            'maxBytes': 1024 * 1024 * 20,  # 20 MB
-            'backupCount': 5,
-            'formatter': 'standard',
-            'encoding': 'UTF-8',
-        },
-        'console': {
-            'level': 'INFO',
-            'class': 'logging.StreamHandler',
-            'filters': ['require_debug_true'],
-            'formatter': 'standard',
-        },
-        'null': {
-            'class': 'logging.NullHandler',
+        'file': {
+            'level': 'ERROR',  # Niveau minimum pour enregistrer les messages
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGGING_DIR, 'main.log'),
         },
     },
     'loggers': {
-        '': {
-            'handlers': ['default', 'console'],
-            'level': 'WARNING',
-        },
-        'django.request': {
-            'level': 'ERROR',
-            'propagate': False
-        },
-        'django.security.DisallowedHost': {
-            'handlers': ['null'],
-            'propagate': False
-        },
         'django': {
-            'level': 'WARNING',
-            'propagate': True
+            'handlers': ['file'],
+            'level': 'ERROR',
+            'propagate': True,
         },
-        'main': {
-            'handlers': ['default', 'console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'asyncio': {
-            'propagate': False
-        },
-    }
+    },
 }
 
 
