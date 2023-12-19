@@ -4,7 +4,6 @@ import pdfplumber
 from .utils import *
 from .models import Achat, Produit_catalogue
 from datetime import datetime
-import json
 from django.db.models import Sum
 from django.db.models.functions import ExtractMonth, ExtractYear
 from decimal import Decimal
@@ -236,8 +235,6 @@ def generer_tableau_synthese():
         'COALIA TOTAL HT', 'COALIA REMISE HT',
         'PHARMAT TOTAL HT', 'PHARMAT REMISE HT',
     ]
-
-    logger.error("TEST")
 
     try:
 

@@ -103,7 +103,7 @@ def pre_traitement_table(format_facture: Format_facture, table_principale):
                 ])
                 i += 1
 
-        print(table_pretraitee)
+        #print(table_pretraitee)
 
     return table_pretraitee
 
@@ -333,7 +333,7 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
             new_categorie = "NON CATEGORISE"
 
     except Exception as e:
-        print(f'L\'achat du produit {designation} avec remise pourcent {remise_pourcent} n\'a pas été catégorisé : {e}')
+        logger.error(f'L\'achat du produit {designation} avec remise pourcent {remise_pourcent} n\'a pas été catégorisé : {e}')
         new_categorie = "NON CATEGORISE ERREUR"
 
     return new_categorie
@@ -388,7 +388,7 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
                     nouvel_achat.remise_theorique_totale = round(Decimal(remise), 4)
 
     except Exception as e:
-        print(f'remise théorique non calculée pour l\'achat {nouvel_achat.produit} du {nouvel_achat.date} : {e}')
+        logger.error(f'remise théorique non calculée pour l\'achat {nouvel_achat.produit} du {nouvel_achat.date} : {e}')
         
     return nouvel_achat
 

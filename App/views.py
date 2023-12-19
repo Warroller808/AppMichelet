@@ -42,8 +42,8 @@ def upload_factures(request):
                 events.extend(events_save)
 
             events.append("Importation terminée.")
-            logger.info("Importation terminée.")
-            logger.info(events)
+            logger.error("Importation terminée.")
+            logger.error(events)
 
             # On envoie les infos extraites au template HTML
             return render(request, 'index.html', {
@@ -138,13 +138,13 @@ def upload_catalogue_excel(request):
                     events.append(f'Le produit {code} a été ajouté')
                     
             events.append("Importation du catalogue réussie !")
-            logger.info("Importation du catalogue réussie !")
+            logger.error("Importation du catalogue réussie !")
 
         except Exception as e:
             events.append(f'Erreur sur le produit {code}: {str(e)}')
             logger.error(f'Erreur sur le produit {code}: {str(e)}')
 
-        logger.info(events)
+        logger.error(events)
 
         return render(request, 'index_upload_catalogue.html', {'events': events})
 
