@@ -1,8 +1,10 @@
 import re
 import logging
-from .models import Format_facture, Produit_catalogue
+from .models import Format_facture, Produit_catalogue, Achat
 import json
 from datetime import datetime
+from .constants import *
+from decimal import Decimal
 
 
 logger = logging.getLogger(__name__)
@@ -296,36 +298,99 @@ def extraire_produits(format, fournisseur, tables_page):
     return produits
 
 
-def categoriser_achat(fournisseur, tva, prix_unitaire_ht, coalia, generique):
+def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp):
     new_categorie = ""
-
-    if fournisseur == "CERP COALIA":
-        new_categorie = "COALIA"
-    elif fournisseur == "CERP PHARMAT" or fournisseur == "PHARMAT" :
-        new_categorie = "PHARMAT"
-    elif "CERP" in fournisseur:
-        if generique:
+    
+    try:
+        if fournisseur == "CERP COALIA":
+            new_categorie = "COALIA"
+        elif fournisseur == "CERP PHARMAT" or fournisseur == "PHARMAT" :
+            new_categorie = "PHARMAT"
+        elif "CERP" in fournisseur:
+            if generique or any(element in designation for element in LABORATOIRES_GENERIQUES):
+                new_categorie = "GENERIQUE"
+            elif marche_produits or any(element in designation for element in MARCHES_PRODUITS):
+                new_categorie = "MARCHE PRODUITS"
+            elif coalia or pharmupp:
+                new_categorie = "UPP"
+            elif remise_pourcent > 0:
+                new_categorie = "REMISE SUR FACTURE"
+            elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht < 450:
+                new_categorie = "<450€ tva 2,1%"
+            elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht > 450 and prix_unitaire_ht < 1500:
+                new_categorie = ">450€ <1500€ tva 2,1%"
+            elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht > 1500:
+                new_categorie = ">1500€ tva 2,1%"
+            elif (tva > 0.0549 and tva < 0.0551) or (tva > 0.099 and tva < 0.101):
+                new_categorie = "LPP"
+            elif tva > 0.199 and tva < 0.201:
+                new_categorie = "PARAPHARMACIE"
+            else:
+                new_categorie = "NON CATEGORISE CERP"
+        elif fournisseur == "TEVA" or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
             new_categorie = "GENERIQUE"
-        elif coalia:
-            new_categorie = "UPP"
-        elif tva == 0.021 and prix_unitaire_ht < 450:
-            new_categorie = "<450€ tva 2,1%"
-        elif tva == 0.021 and prix_unitaire_ht > 450 and prix_unitaire_ht < 1500:
-            new_categorie = ">450€ <1500€ tva 2,1%"
-        elif tva == 0.021 and prix_unitaire_ht > 1500:
-            new_categorie = ">1500€ tva 2,1%"
-        elif tva == 0.055 or tva == 0.1:
-            new_categorie = "LPP"
-        elif tva == 0.20:
-            new_categorie = "PARAPHARMACIE"
         else:
-            new_categorie = "NON CATEGORISE CERP"
-    elif fournisseur == "TEVA" or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
-        new_categorie = "GENERIQUE"
-    else:
-        new_categorie = "NON CATEGORISE"
+            new_categorie = "NON CATEGORISE"
+
+    except Exception as e:
+        print(f'L\'achat du produit {designation} avec remise pourcent {remise_pourcent} n\'a pas été catégorisé : {e}')
+        new_categorie = "NON CATEGORISE ERREUR"
 
     return new_categorie
+
+
+def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
+
+    remise = 0
+
+    try:
+        if nouvel_achat.categorie == "COALIA":
+            if produit.remise_direct:
+                for r in json.loads(produit.remise_direct):
+                    if nouvel_achat.nb_boites >= r[0]:
+                        remise = r[1]
+                nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * Decimal(remise), 4)
+        if nouvel_achat.categorie == "PHARMAT":
+            #Cas particulier Pharmat car pas de remises catalogue
+            if nouvel_achat.remise_pourcent != 0:
+                nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * nouvel_achat.remise_pourcent, 4)
+        elif "CERP" not in nouvel_achat.fournisseur and nouvel_achat.categorie == "GENERIQUE":
+            #GENERIQUE NON CERP donc en direct
+            if produit.remise_direct:
+                for r in json.loads(produit.remise_direct):
+                    if nouvel_achat.nb_boites >= r[0]:
+                        remise = r[1]
+                nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * Decimal(remise), 4)
+        elif "CERP" in nouvel_achat.fournisseur and nouvel_achat.categorie == "GENERIQUE":
+            #GENERIQUE CERP
+            if produit.remise_grossiste:
+                for r in json.loads(produit.remise_grossiste):
+                    if nouvel_achat.nb_boites >= r[0]:
+                        remise = r[1]
+                nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * Decimal(remise), 4)
+        else:
+            #UPP, CERP, LPP, PARAPHARMA
+            #TRANCHES D'€ SEULEMENT SI PAS PARAPHARMA, UPP ou LPP
+            if nouvel_achat.categorie == "UPP" or nouvel_achat.categorie == "MARCHE PRODUITS":
+                #Si upp, remise grossiste si existante, sinon 0 par défaut
+                if produit.remise_grossiste:
+                    for r in json.loads(produit.remise_grossiste):
+                        if nouvel_achat.nb_boites >= r[0]:
+                            remise = r[1]
+                    nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * Decimal(remise), 4)
+            else:
+                remise = choix_remise_grossiste(produit, nouvel_achat.categorie, nouvel_achat.nb_boites)
+                if remise < 1:
+                    #remise classique en %
+                    nouvel_achat.remise_theorique_totale = round(nouvel_achat.montant_ht_hors_remise * Decimal(remise), 4)
+                else:
+                    #remise en €
+                    nouvel_achat.remise_theorique_totale = round(Decimal(remise), 4)
+
+    except Exception as e:
+        print(f'remise théorique non calculée pour l\'achat {nouvel_achat.produit} du {nouvel_achat.date} : {e}')
+        
+    return nouvel_achat
 
 
 def convert_date(date_str):

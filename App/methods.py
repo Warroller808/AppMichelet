@@ -122,18 +122,29 @@ def save_data(table_donnees):
         generique = False
         try:
             produit = Produit_catalogue.objects.get(code=dictligne["produit"], annee=dictligne["date"].year)
-            coalia = produit.coalia
             generique = (produit.type == "GENERIQUE")
+            marche_produits = (produit.type == "MARCHE PRODUITS")
+            pharmupp = produit.pharmupp
             # SI LA TVA MANQUE ON L'AJOUTE AVANT LA CATEGORISATION
             if dictligne["tva"] != 0:
                 if produit.tva == 0:
                     produit.tva = dictligne["tva"]
                     produit.save()
+            # SI FACTURE COALIA, LE PRODUIT EST MARQUE COMME VENDU CHEZ COALIA POUR LES FUTURS UPP
+            if dictligne("fournisseur") == "CERP COALIA" and not produit.coalia:
+                produit.coalia = True
+                produit.save()
+
+            coalia = produit.coalia
+                    
         except:
             coalia = (dictligne["fournisseur"] == "CERP COALIA")
             generique = (dictligne["fournisseur"] == "TEVA" or dictligne["fournisseur"] == "EG" or dictligne["fournisseur"] == "BIOGARAN"  or dictligne["fournisseur"] == "ARROW")
+            marche_produits = False
+            pharmupp = False
 
-        new_categorie = categoriser_achat(dictligne["fournisseur"], dictligne["tva"], dictligne["prix_unitaire_ht"], coalia, generique)
+        #MODIFIER LA CATEGORISATION POUR RECUP DEPUIS LE PRODUIT LE MARCHE PRODUITS
+        new_categorie = categoriser_achat(dictligne["designation"], dictligne["fournisseur"], dictligne["tva"], dictligne["prix_unitaire_ht"], dictligne["remise_pourcent"], coalia, generique, marche_produits, pharmupp)
 
         #IMPORTATION DU PRODUIT POUR AVOIR LA REMISE THEORIQUE
 
@@ -165,6 +176,18 @@ def save_data(table_donnees):
             nouveau_produit.save()
             events.append(f'Le produit suivant a été créé sans remise, merci de compléter sa fiche dans l\'interface admin : {ligne[0]} - {ligne[1]}')
 
+        else:
+            #produit existe => mise à jour en fonction de la catégorie
+            produit = Produit_catalogue.objects.get(code=dictligne["produit"], annee=dictligne["date"].year)
+            if produit.type == "":
+                if new_categorie == "GENERIQUE" or new_categorie == "MARCHE PRODUITS":
+                    produit.type = new_categorie
+                    produit.save()
+            if new_categorie == "GENERIQUE" and produit.fournisseur_generique == "":
+                if dictligne["fournisseur"] == "TEVA" or dictligne["fournisseur"] == "EG" or dictligne["fournisseur"] == "BIOGARAN"  or dictligne["fournisseur"] == "ARROW" :
+                    produit.fournisseur_generique = dictligne["fournisseur"]
+                    produit.save()
+
         #ON IMPORTE LE PRODUIT A NOUVEAU
         produit = Produit_catalogue.objects.get(code=dictligne["produit"], annee=dictligne["date"].year)
 
@@ -187,51 +210,7 @@ def save_data(table_donnees):
         )
         
         #ON CALCULE LA REMISE THEORIQUE
-        remise = 0
-        nouvel_achat.remise_theorique_totale = 0
-
-        if new_categorie == "COALIA":
-            if produit.remise_direct:
-                for r in json.loads(produit.remise_direct):
-                    if dictligne["nb_boites"] >= r[0]:
-                        remise = r[1]
-                nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * remise
-        if new_categorie == "PHARMAT":
-            #Cas particulier Pharmat car pas de remises catalogue
-            if dictligne["remise_pourcent"] != 0:
-                nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * dictligne["remise_pourcent"]
-        elif "CERP" not in dictligne["fournisseur"] and new_categorie == "GENERIQUE":
-            #GENERIQUE NON CERP donc en direct
-            if produit.remise_direct:
-                for r in json.loads(produit.remise_direct):
-                    if dictligne["nb_boites"] >= r[0]:
-                        remise = r[1]
-                nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * remise
-        elif "CERP" in dictligne["fournisseur"] and new_categorie == "GENERIQUE":
-            #GENERIQUE CERP
-            if produit.remise_grossiste:
-                for r in json.loads(produit.remise_grossiste):
-                    if dictligne["nb_boites"] >= r[0]:
-                        remise = r[1]
-                nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * remise
-        else:
-            #UPP, CERP, LPP, PARAPHARMA
-            #TRANCHES D'€ SEULEMENT SI PAS PARAPHARMA, UPP ou LPP
-            if new_categorie == "UPP":
-                #Si upp, remise grossiste si existante, sinon 0 par défaut
-                if produit.remise_grossiste:
-                    for r in json.loads(produit.remise_direct):
-                        if dictligne["nb_boites"] >= r[0]:
-                            remise = r[1]
-                    nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * remise
-            else:
-                remise = choix_remise_grossiste(produit, new_categorie, dictligne["nb_boites"])
-                if remise < 1:
-                    #remise classique en %
-                    nouvel_achat.remise_theorique_totale = nouvel_achat.montant_ht_hors_remise * remise
-                else:
-                    #remise en €
-                    nouvel_achat.remise_theorique_totale = remise
+        nouvel_achat = calculer_remise_theorique(produit, nouvel_achat)
 
         nouvel_achat.save()
 
@@ -247,15 +226,15 @@ def generer_tableau_synthese():
     data_dict = {}
     categories = [
         '<450€ tva 2,1% TOTAL HT', '<450€ tva 2,1% REMISE HT',
-        '>450€ <1500€ tva 2,1% TOTAL HT', '>450€ <1500€ tva 2,1% REMISE HT',
-        '>1500€ tva 2,1% TOTAL HT', '>1500€ tva 2,1% REMISE HT',
+        'PARAPHARMACIE TOTAL HT', 'PARAPHARMACIE REMISE HT',
+        'LPP TOTAL HT', 'LPP REMISE HT',
+        'ASSIETTE GLOBALE TOTAL HT', 'ASSIETTE GLOBALE REMISE HT',
+        'ASS.GLOB -9% TOTAL HT', 'ASS.GLOB -9% REMISE HT',
         'GENERIQUE TOTAL HT', 'GENERIQUE REMISE HT',
         'MARCHE PRODUITS TOTAL HT', 'MARCHE PRODUITS REMISE HT',
         'UPP TOTAL HT', 'UPP REMISE HT',
         'COALIA TOTAL HT', 'COALIA REMISE HT',
         'PHARMAT TOTAL HT', 'PHARMAT REMISE HT',
-        'PARAPHARMACIE TOTAL HT', 'PARAPHARMACIE REMISE HT',
-        'LPP TOTAL HT', 'LPP REMISE HT',
     ]
 
     try:
@@ -302,14 +281,25 @@ def generer_tableau_synthese():
 
         tableau_synthese = quicksort_tableau(tableau_synthese)
 
+        #AJOUT DES COLONNES ASSIETTE GLOBALE
+
+        for colonne in range(len(categories)):
+            # on remplit les colonnes qui étaient à 0
+            if "ASSIETTE GLOBALE" in categories[colonne]:
+                for ligne in range(len(tableau_synthese)):
+                    tableau_synthese[ligne][colonne + 1] = tableau_synthese[ligne][colonne - 1] + tableau_synthese[ligne][colonne - 3] + tableau_synthese[ligne][colonne - 5]
+            elif "-9%" in categories[colonne]:
+                for ligne in range(len(tableau_synthese)):
+                    tableau_synthese[ligne][colonne + 1] = round(Decimal(tableau_synthese[ligne][colonne - 1]) * Decimal(0.81), 2)
+
         #LIGNES DE TOTAUX PAR ANNEE
 
         ligne = 0
         ligne_annee_precedente = -1
 
         while ligne < len(tableau_synthese):
-            #print(f'ligne: {ligne}')
-            if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "" and tableau_synthese[ligne - 1][0] != "TOTAL":
+            print(f'ligne: {ligne}, derniere ligne: {len(tableau_synthese) - 1}')
+            if tableau_synthese[ligne][0] != "" and tableau_synthese[ligne][0] != "TOTAL" and tableau_synthese[ligne - 1][0] != "TOTAL":
                 
                 traitement = False
 
@@ -318,16 +308,19 @@ def generer_tableau_synthese():
                         traitement = True
                         # on simule l'avance sur la prochaine ligne
                         ligne += 1
-                elif convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
-                    traitement = True
-                    #print("comparaison de dates")
+                elif tableau_synthese[ligne - 1][0] != "":
+                    if convert_date(tableau_synthese[ligne][0]).year != convert_date(tableau_synthese[ligne - 1][0]).year:
+                        traitement = True
+                        print("comparaison de dates")
                 elif ligne == len(tableau_synthese) - 1:
                     traitement = True
                     # on simule l'avance sur la prochaine ligne
                     ligne += 1
-                    #print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+                    print(f'derniere ligne : ligne {ligne} / {len(tableau_synthese) - 1}. Nb elements : {len(tableau_synthese)}')
+                else:
+                    print("ne correspond à aucun cas")
                 
-                #print(traitement)
+                print(traitement)
                 if traitement:
                     # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
                     # Ligne de totaux initialisée avec un vide pour la colonne mois annee
@@ -338,7 +331,7 @@ def generer_tableau_synthese():
                             total += Decimal(tableau_synthese[ligne_annee][colonne])
                         totaux.append(round(total, 2))
 
-                    #print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
+                    print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
                     #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
                     pourcentages = ['']
@@ -353,7 +346,7 @@ def generer_tableau_synthese():
 
                     tableau_synthese.insert(ligne, totaux)
                     tableau_synthese.insert(ligne + 1, pourcentages)
-                    #print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
+                    print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
                     ligne_annee_precedente = ligne + 1
                     ligne += 2
                 else:
@@ -364,7 +357,7 @@ def generer_tableau_synthese():
         return tableau_synthese, categories
     
     except Exception as e:
-        logger.error(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback}")
+        logger.error(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback.format_exc()}")
         return tableau_synthese, categories
 
 
@@ -395,46 +388,3 @@ def generer_tableau_generiques():
     #     print(entry)
 
     return 1
-
-
-def categoriser():
-    try:
-        achats = Achat.objects.all()
-        for entry in achats:
-            if entry.categorie == "":
-                produit = Produit_catalogue.objects.get(code=entry.produit, annee=entry.date.year)
-
-                if entry.fournisseur == "EG LABO":
-                    entry.fournisseur = "EG"
-
-                if entry.fournisseur == "CERP COALIA":
-                    entry.categorie = "COALIA"
-                elif entry.fournisseur == "CERP PHARMAT" or entry.fournisseur == "PHARMAT" :
-                    entry.categorie = "PHARMAT"
-                elif entry.fournisseur == "CERP" or entry.fournisseur == "CERP MAGASIN GENERAL" or entry.fournisseur == "CERP SUPPLEMENT" or entry.fournisseur == "CERP COMMANDE RESEAU":
-                    if produit.type == "GENERIQUE":
-                        entry.categorie = "GENERIQUE"
-                    elif produit.coalia:
-                        entry.categorie = "UPP"
-                    elif entry.tva == 0.021 and entry.prix_unitaire_ht < 450:
-                        entry.categorie = "<450€ tva 2,1%"
-                    elif entry.tva == 0.021 and entry.prix_unitaire_ht > 450 and entry.prix_unitaire_ht < 1500:
-                        entry.categorie = ">450€ <1500€ tva 2,1%"
-                    elif entry.tva == 0.021 and entry.prix_unitaire_ht > 1500:
-                        entry.categorie = ">1500€ tva 2,1%"
-                    elif entry.tva == 0.055 or entry.tva == 0.1:
-                        entry.categorie = "LPP"
-                    elif entry.tva == 0.20:
-                        entry.categorie = "PARAPHARMACIE"
-                elif entry.fournisseur == "TEVA" or entry.fournisseur == "EG" or entry.fournisseur == "BIOGARAN"  or entry.fournisseur == "ARROW" :
-                    entry.categorie = "GENERIQUE"
-                else:
-                    print(f"aucune catégorie trouvée pour {entry.produit} - {entry.date}")
-                    continue
-
-                entry.save()
-
-        return True
-    
-    except:
-        return False

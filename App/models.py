@@ -12,6 +12,7 @@ class Produit_catalogue(models.Model):
     type = models.CharField("TYPE", max_length=128, default="")
     fournisseur_generique = models.CharField("FOURNISSEUR GENERIQUE", max_length=128, default="")
     coalia = models.BooleanField("COALIA", default=False)
+    pharmupp = models.BooleanField("PHARMUPP", default=False)
     remise_grossiste = models.CharField("REMISE_GROSSISTE", max_length=128, default="")
     remise_direct = models.CharField("REMISE_DIRECT", max_length=128, default="")
     tva = models.DecimalField("TVA", max_digits=15, decimal_places=3, default=0.00)
@@ -82,7 +83,6 @@ class Command(BaseCommand):
             
         return resultat_suppression_catalogue
 
-
     def supprimer_achats():
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:
@@ -98,3 +98,53 @@ class Command(BaseCommand):
             resultat_suppression_achats = f"Erreur lors de la suppression des achats : {str(e)}"
         
         return resultat_suppression_achats
+    
+    def categoriser_achats():
+        from .utils import categoriser_achat
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+
+        achats = Achat.objects.all()
+        prev_categorie = ""
+
+        for achat in achats:
+            prev_categorie = achat.categorie
+            
+            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
+            achat.categorie = categoriser_achat(achat.designation, achat.fournisseur, achat.tva, achat.prix_unitaire_ht, achat.remise_pourcent, produit.coalia, produit.type == "GENERIQUE", produit.type == "MARCHE PRODUITS", produit.pharmupp)
+
+            achat.save()
+
+            if achat.categorie != prev_categorie:
+                print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
+
+
+    def calcul_remises():
+        from .utils import calculer_remise_theorique
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        achats = Achat.objects.all()
+        prev_remise = 0
+
+        for achat in achats:
+            prev_remise = achat.remise_theorique_totale
+
+            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
+            achat = calculer_remise_theorique(produit, achat)
+
+            achat.save()
+
+            if achat.remise_theorique_totale != prev_remise:
+                print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
+
+
+    def afficher_achat():
+        achats = Achat.objects.filter(produit="7323190196562", date="2023-10-16")
+
+        for achat in achats:
+            print(vars(achat))

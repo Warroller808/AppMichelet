@@ -45,9 +45,11 @@
                 </thead>
                 <tbody>
                 {% for ligne in tableau_synthese %}
-                    <tr>
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} style="font-weight: bold; background-color: #f2f2f2;" {% endif %}>
                         {% for cellule in ligne %}
-                            <td>{{ cellule }}</td>
+                            <td>
+                                {{ cellule }}
+                            </td>
                         {% endfor %}
                     </tr>
                 {% endfor %}

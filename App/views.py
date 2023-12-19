@@ -107,6 +107,9 @@ def upload_catalogue_excel(request):
                     if produit_catalogue.coalia != bool(row['coalia']):
                         produit_catalogue.coalia = bool(row['coalia'])
                         changed = True
+                    if produit_catalogue.pharmupp != bool(row['pharmupp']):
+                        produit_catalogue.pharmupp = bool(row['pharmupp'])
+                        changed = True
                     if produit_catalogue.remise_grossiste != str(row['remise_grossiste']):
                         produit_catalogue.remise_grossiste = str(row['remise_grossiste'])
                         changed = True
@@ -126,6 +129,7 @@ def upload_catalogue_excel(request):
                     produit_catalogue.type = row['type']
                     produit_catalogue.fournisseur_generique = row['fournisseur_generique']
                     produit_catalogue.coalia = bool(row['coalia'])
+                    produit_catalogue.pharmupp = bool(row['pharmupp'])
                     produit_catalogue.remise_grossiste = str(row['remise_grossiste'])
                     produit_catalogue.remise_direct = str(row['remise_direct'])
                     produit_catalogue.tva = float(row['tva'])
