@@ -99,11 +99,15 @@ LOGGING = {
             'filename': os.path.join(LOGGING_DIR, 'main.log'),
         },
     },
+    'root': {
+        'level': 'ERROR',
+        'handlers': ['file'],
+    },
     'loggers': {
         'django': {
             'handlers': ['file'],
             'level': 'ERROR',
-            'propagate': True,
+            'propagate': False,
         },
     },
 }

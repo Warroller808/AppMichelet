@@ -360,7 +360,6 @@ def generer_tableau_synthese():
     
     except Exception as e:
         logger.error(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback.format_exc()}")
-        print()
         return tableau_synthese, categories
 
 
