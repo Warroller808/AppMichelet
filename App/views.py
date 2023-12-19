@@ -42,7 +42,7 @@ def upload_factures(request):
                 events.extend(events_facture)
                 events.extend(events_save)
 
-            events.append("Importation terminée.")
+            events.insert(0, "Importation terminée.")
             logger.error("Importation terminée.")
             logger.error(events)
 
@@ -138,7 +138,7 @@ def upload_catalogue_excel(request):
                     produit_catalogue.save()
                     events.append(f'Le produit {code} a été ajouté')
                     
-            events.append("Importation du catalogue réussie !")
+            events.insert(0, "Importation du catalogue réussie !")
             logger.error("Importation du catalogue réussie !")
 
         except Exception as e:
