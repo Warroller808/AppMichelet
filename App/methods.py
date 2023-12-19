@@ -12,7 +12,7 @@ import traceback
 
 BASE_DIR = settings.BASE_DIR
 logger = logging.getLogger(__name__)
-logger.error("TEST methods")
+
 
 def handle_uploaded_facture(facture):
     dossier_sauvegarde = os.path.join(BASE_DIR, 'media/factures')

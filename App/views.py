@@ -10,7 +10,7 @@ import logging
 # Create your views here.
 
 logger = logging.getLogger('django')
-logger.error("TEST views")
+
 
 @login_required
 def index(request):
