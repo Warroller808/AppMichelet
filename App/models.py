@@ -3,8 +3,6 @@ from datetime import datetime
 from django.core.management.base import BaseCommand
 
 
-# Create your models here.
-
 class Produit_catalogue(models.Model):
     code = models.CharField("CODE", max_length=128)
     annee = models.IntegerField("ANNEE", default=int(datetime.now().year))
@@ -148,3 +146,18 @@ class Command(BaseCommand):
 
         for achat in achats:
             print(vars(achat))
+
+
+    def extraire_produits_categorises():
+        from AppMichelet.settings import BASE_DIR
+        import pandas as pd
+        import os
+
+        excel_file_path = os.path.join(BASE_DIR, 'extractions/Produits_categorises.xlsx')
+
+        data = Achat.objects.values('produit', 'designation', 'tva', 'fournisseur', 'categorie').distinct()
+
+        df = pd.DataFrame.from_records(data)
+
+        df.to_excel(excel_file_path, index=False)
+
