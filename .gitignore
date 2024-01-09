@@ -144,3 +144,4 @@ media/
 logs/
 migrations/
 /AppMichelet/settings_local.py
+extractions/
