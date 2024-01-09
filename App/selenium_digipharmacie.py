@@ -232,7 +232,7 @@ def main_digi():
             time.sleep(1)
 
             emission = driver.find_element(By.XPATH, '//div[contains(text(), "Émission")]')
-            emission.click()
+            driver.execute_script("arguments[0].click();", emission)
 
             time.sleep(1)
 
@@ -255,7 +255,7 @@ def main_digi():
             time.sleep(1)
 
             laboratoire = driver.find_element(By.XPATH, '//div[text()="Laboratoire"]')
-            laboratoire.click()
+            driver.execute_script("arguments[0].click();", laboratoire)
 
             time.sleep(1)
 
