@@ -6,10 +6,11 @@ import pandas as pd
 from .models import Produit_catalogue
 from datetime import datetime
 import logging
+from .tasks import async_import_factures_auto, async_import_factures_depuis_dossier
 
 # Create your views here.
 
-logger = logging.getLogger('django')
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -20,45 +21,28 @@ def index(request):
 @login_required
 def upload_factures(request):
     if request.method == 'POST':
+        # Traitement des factures manuelles
         factures = request.FILES.getlist('factures')
-
         if factures:
+            facture_paths = [handle_uploaded_facture(facture) for facture in factures]
 
-            table_achats_finale = []
-            table_produits_finale = []
-            events = []
+            success, table_achats_finale, events, texte_page, tables_page, tables_page_2 = process_factures(facture_paths)
 
-            for facture in factures:
-
-                # Sauvegarde de la facture sur le serveur
-                facture_path, facture_name = handle_uploaded_facture(facture)
-                #Extraction des infos
-                table_donnees, table_produits, events_facture, texte_page, tables_page, tables_page_2 = extract_data(facture_path, facture_name)
-                #Ajout des infos à la bdd + Contrôles
-                events_save = save_data(table_donnees)
-
-                table_achats_finale.extend(table_donnees)
-                table_produits_finale.extend(table_produits)
-                events.extend(events_facture)
-                events.extend(events_save)
-
-            events.insert(0, "Importation terminée.")
-            logger.error("Importation terminée.")
-            logger.error(events)
+            logger.error(f'Succès de l\'importation manuelle des factures : {success}')
 
             # On envoie les infos extraites au template HTML
             return render(request, 'index.html', {
-                                                    'table_achats_finale': table_achats_finale, 
-                                                    'table_produits': table_produits_finale, 
-                                                    'events': events, 
-                                                    'texte_page': texte_page, 
-                                                    'tables_page': tables_page,
-                                                    'tables_page_2': tables_page_2
-                                                })
-        
-        else: render(request, 'index.html', {   
-                                                'events': [["Aucune facture sélectionnée"]]
+                                                'table_achats_finale': table_achats_finale,
+                                                'events': events, 
+                                                'texte_page': texte_page, 
+                                                'tables_page': tables_page,
+                                                'tables_page_2': tables_page_2
                                             })
+        
+        else: 
+            return render(request, 'index.html', {   
+                                            'events': [["Aucune facture sélectionnée"]]
+                                        })
 
     return render(request, 'index.html')
 
@@ -153,18 +137,49 @@ def upload_catalogue_excel(request):
 
 
 @login_required
-def afficher_tableau_synthese(request):
+def tableau_synthese(request):
 
     #Générer le tableau dans methods
     if request.method == 'POST':
 
-        tableau_synthese, categories = generer_tableau_synthese()
-        tableau_generiques = generer_tableau_generiques()
+        tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres = generer_tableau_synthese()
 
         return render(request, 'index_tableau.html', {
-            'tableau_synthese': tableau_synthese,
+            'tableau_synthese_assiette_globale': tableau_synthese_assiette_globale,
+            'tableau_synthese_autres': tableau_synthese_autres,
             'tableau_generiques': tableau_generiques,
-            'categories': categories
+            'categories_assiette_globale': categories_assiette_globale,
+            'categories_autres': categories_autres
         })
 
     return render(request, 'index_tableau.html')
+
+
+@login_required
+def tableau_generiques(request):
+    
+    laboratoires = Produit_catalogue.objects.exclude(fournisseur_generique='').values('fournisseur_generique').distinct()
+    laboratoire_selectionne = request.GET.get('laboratoire', '')
+
+    tableau_generiques, colonnes, subquery, achats_labo = generer_tableau_generiques(laboratoire_selectionne)
+
+    context = {
+        'laboratoires': laboratoires,
+        'laboratoire_selectionne': laboratoire_selectionne,
+        'tableau_generiques': tableau_generiques,
+        'colonnes': colonnes,
+        'subquery': subquery,
+        'achats_labo': achats_labo,
+    }
+
+    return render(request, 'index_tableau_generiques.html', context)
+
+
+@login_required
+def lancer_import_auto(request):
+    if request.method == 'POST':
+        logger.error('Lancer import auto test')
+        #async_import_factures_auto.delay()
+        async_import_factures_depuis_dossier()
+
+    return render(request, 'index.html')

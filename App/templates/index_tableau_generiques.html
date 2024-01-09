@@ -22,14 +22,19 @@
     </div>
 
     <div class="content">
-        <h1>Tableau synthèse</h1>
+        <h1>Tableau génériques</h1>
 
-        <form method="post" action="\tableau_synthese\">
-            {% csrf_token %}
-            <button type="submit">Afficher le tableau</button>
+        <form method="get" action="\tableau_generiques\">
+            <label for="laboratoire">Sélectionnez un laboratoire :</label>
+            <select name="laboratoire" id="laboratoire">
+                {% for lab in laboratoires %}
+                    <option value="{{ lab.fournisseur_generique }}" {% if lab.fournisseur_generique == laboratoire_selectionne %}selected{% endif %}>{{ lab.fournisseur_generique }}</option>
+                {% endfor %}
+            </select>
+            <input type="submit" value="Filtrer">
         </form>
 
-        {% if tableau_synthese_assiette_globale %}
+        {% if tableau_generiques %}
 
             <h6>Montant HT = Montant total HT avant remise, produits sur avoirs déduits
                 <br><br>
@@ -39,13 +44,13 @@
                 <thead>
                 <tr>
                     <th>Mois/Année</th>
-                    {% for categorie in categories_assiette_globale %}
+                    {% for categorie in colonnes %}
                         <th>{{ categorie }}</th>
                     {% endfor %}
                 </tr>
                 </thead>
                 <tbody>
-                {% for ligne in tableau_synthese_assiette_globale %}
+                {% for ligne in tableau_generiques %}
                     <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} style="font-weight: bold; background-color: #f2f2f2;" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
@@ -58,30 +63,11 @@
             </table>
         {% endif %}
 
-        {% if tableau_synthese_autres %}
+        <p>{{ subquery }}</p>
 
-            <table border="1">
-                <thead>
-                <tr>
-                    <th>Mois/Année</th>
-                    {% for categorie in categories_autres %}
-                        <th>{{ categorie }}</th>
-                    {% endfor %}
-                </tr>
-                </thead>
-                <tbody>
-                {% for ligne in tableau_synthese_autres %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} style="font-weight: bold; background-color: #f2f2f2;" {% endif %}>
-                        {% for cellule in ligne %}
-                            <td>
-                                {{ cellule }}
-                            </td>
-                        {% endfor %}
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
+        <br><br>
+
+        <p>{{ achats_labo }}</p>
 
     </div>
 </body>

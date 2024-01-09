@@ -11,8 +11,6 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 import os
-
-
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -30,10 +28,11 @@ if not os.path.exists(LOGGING_DIR):
 SECRET_KEY = 'django-insecure-&i5v-@-!_v92^-4261rlqr9eza@k0#^0n5p%3vd7_a8(m*7-=^'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ["146.59.196.220", "controle-remises.appmichelet.ovh"]
+ALLOWED_HOSTS = []
 
+CELERY_BROKER_URL = "amqp://localhost"
 
 # Application definition
 
