@@ -12,7 +12,8 @@
 
     <div class="navbar">
         <a href="\">Importer des factures</a>
-        <a href="\afficher_tableau_synthese\">Tableau Synthèse</a>
+        <a href="\tableau_synthese\">Tableau Synthèse</a>
+        <a href="\tableau_generiques\">Tableau Génériques</a>
         <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
 
         {% if user.is_authenticated %}
@@ -48,6 +49,13 @@
         </div>
     
         <div class="debug-content" id="debugContent">
+            
+            <form method="post" enctype="multipart/form-data" action="/import_auto/">
+                {% csrf_token %}
+                <button type="submit">TEST</button>
+            </form>
+            
+
             {% if table_achats_finale %}
                 <h2>Tableau final :</h2>
                 <table border="2">

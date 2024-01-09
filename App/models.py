@@ -11,6 +11,7 @@ class Produit_catalogue(models.Model):
     fournisseur_generique = models.CharField("FOURNISSEUR GENERIQUE", max_length=128, default="")
     coalia = models.BooleanField("COALIA", default=False)
     pharmupp = models.BooleanField("PHARMUPP", default=False)
+    lpp = models.BooleanField("LPP", default=False)
     remise_grossiste = models.CharField("REMISE_GROSSISTE", max_length=128, default="")
     remise_direct = models.CharField("REMISE_DIRECT", max_length=128, default="")
     tva = models.DecimalField("TVA", max_digits=15, decimal_places=3, default=0.00)
@@ -22,7 +23,8 @@ class Produit_catalogue(models.Model):
         unique_together = ('code', 'annee')
     
 class Achat(models.Model):
-    produit = models.CharField("PRODUIT", max_length=128, blank=False, default='')
+    code = models.CharField("CODE", max_length=128, blank=False, default='')
+    produit = models.ForeignKey(Produit_catalogue, on_delete=models.PROTECT, null=True, default=None)
     designation = models.CharField("DESIGNATION", max_length=128, blank=True, default='')
     nb_boites = models.IntegerField("NB_BOITES",default=0)
     prix_unitaire_ht = models.DecimalField("PRIX_UNITAIRE_HT", max_digits=15, decimal_places=4, default=0.00)
@@ -39,7 +41,21 @@ class Achat(models.Model):
     categorie = models.CharField("CATEGORIE", max_length=128, default='')
 
     def __str__(self):
-        return f"{self.produit} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
+        return f"{self.code} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
+    
+
+class Avoir_remises(models.Model):
+    numero = models.CharField("NUMERO", max_length=128, primary_key=True)
+    date = models.DateField("DATE", blank=False)
+    mois_concerne = models.CharField("MOIS_CONCERNÉ", max_length=128, blank=False, default="")
+    specialites_pharmaceutiques = models.DecimalField("SPECIALITÉS_PHARMACEUTIQUES", max_digits=15, decimal_places=4, default=0.00)
+    lpp = models.DecimalField("LPP", max_digits=15, decimal_places=4, default=0.00)
+    parapharmacie = models.DecimalField("PARAPHARMACIE", max_digits=15, decimal_places=4, default=0.00)
+    avantage_commercial = models.DecimalField("AVANTAGE_COMMERCIAL", max_digits=15, decimal_places=4, default=0.00)
+    total = models.DecimalField("TOTAL", max_digits=15, decimal_places=4, default=0.00)
+
+    def __str__(self):
+        return f"{self.numero} émis le {self.date} - Mois concerné : {self.mois_concerne}"
 
 
 class Format_facture(models.Model):
@@ -60,6 +76,11 @@ class Format_facture(models.Model):
     indice_montant_ht_hors_remise = models.IntegerField(blank=True, default=-1)
     indice_montant_ht = models.IntegerField(blank=True, default=-1)
     indice_tva = models.IntegerField(blank=True, default=-1)
+
+
+class Constante(models.Model):
+    name = models.CharField("NOM", max_length=128, primary_key=True)
+    value = models.CharField("VALEUR", max_length=128, blank=True, default="")
 
 
 class Command(BaseCommand):
@@ -111,12 +132,31 @@ class Command(BaseCommand):
             prev_categorie = achat.categorie
             
             produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
-            achat.categorie = categoriser_achat(achat.designation, achat.fournisseur, achat.tva, achat.prix_unitaire_ht, achat.remise_pourcent, produit.coalia, produit.type == "GENERIQUE", produit.type == "MARCHE PRODUITS", produit.pharmupp)
+            achat.categorie = categoriser_achat(achat.designation, achat.fournisseur, achat.tva, achat.prix_unitaire_ht, achat.remise_pourcent, produit.coalia, produit.type == "GENERIQUE", produit.type == "MARCHE PRODUITS", produit.pharmupp, produit.lpp)
 
             achat.save()
 
             if achat.categorie != prev_categorie:
                 print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
+
+
+    def completer_fournisseur_generique():
+        from .utils import determiner_fournisseur_generique
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        produits = Produit_catalogue.objects.all()
+
+        for produit in produits:
+            if produit.type == "GENERIQUE":
+                prev_fournisseur = produit.fournisseur_generique
+                produit.fournisseur_generique = determiner_fournisseur_generique(produit.designation)
+                produit.save()
+                print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
+            else:
+                produit.fournisseur_generique
 
 
     def calcul_remises():
@@ -161,3 +201,22 @@ class Command(BaseCommand):
 
         df.to_excel(excel_file_path, index=False)
 
+
+    def attribuer_produit_to_achats():
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+
+        achats_sans_produit = Achat.objects.filter(produit__isnull=True)
+
+        for achat in achats_sans_produit:
+            try:
+                produit = Produit_catalogue.objects.get(code=achat.code, annee=achat.date.year)
+                achat.produit = produit
+                achat.save()
+                print(f'Achat {achat.code} associé au produit {produit.code}')
+            except Exception as e:
+                print(f'Erreur sur l\'achat {achat.code} : {e}')
+
+        print('Mise à jour des achats terminée.')

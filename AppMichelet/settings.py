@@ -11,9 +11,10 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 import os
-
-
 from pathlib import Path
+from celery.schedules import crontab
+import pytz
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -34,7 +35,6 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["146.59.196.220", "controle-remises.appmichelet.ovh"]
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'App.apps.AppConfig'
+    'App.apps.AppConfig',
+    'django_celery_beat',
 ]
 
 MIDDLEWARE = [
@@ -160,3 +161,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+CELERY_BROKER_URL = "amqp://localhost"
+CELERY_RESULT_BACKEND = "amqp://localhost"
+
+CELERY_BEAT_SCHEDULE = {
+    'import_factures_auto': {
+        'task': 'App.tasks.async_import_factures_auto',
+        'schedule': crontab(hour=2, minute=0, timezone='Europe/Paris')
+    },
+}
