@@ -148,7 +148,7 @@ def main_digi():
         time.sleep(1)
 
         emission = driver.find_element(By.XPATH, '//div[contains(text(), "Émission")]')
-        emission.click()
+        driver.execute_script("arguments[0].click();", emission)
 
         time.sleep(1)
 
@@ -171,9 +171,11 @@ def main_digi():
         time.sleep(1)
 
         fournisseurs = driver.find_element(By.XPATH, '//div[text()="Fournisseur"]')
-        fournisseurs.click()
+        driver.execute_script("arguments[0].click();", fournisseurs)
 
         time.sleep(1)
+
+        logger.error(f'Début boucle sur les fournisseurs')
 
         for i in range(len(LISTE_FOURNISSEURS)):
             logger.error(f"Traitement du fournisseur {LISTE_FOURNISSEURS[i]}")
@@ -186,6 +188,8 @@ def main_digi():
             time.sleep(1)
             driver.execute_script("arguments[0].click();", labo_trouve)
             time.sleep(1)
+
+        logger.error(f'Fin boucle sur les fournisseurs')
 
         filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
         filtre.click()
@@ -210,8 +214,15 @@ def main_digi():
         for i in range(len(LISTE_LABORATOIRES)):
             logger.error(f"Traitement du laboratoire {LISTE_LABORATOIRES[i]}")
 
-            effacer_filtres = driver.find_element(By.XPATH, '//span[@data-category="Effacer les filtres"]')
-            effacer_filtres.click()
+            try:
+                effacer_filtres = driver.find_element(By.XPATH, '//span[@data-category="Effacer les filtres"]')
+                effacer_filtres.click()
+            except:
+                filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
+                filtre.click()
+                time.sleep(1)
+                effacer_filtres = driver.find_element(By.XPATH, '//span[@data-category="Effacer les filtres"]')
+                effacer_filtres.click()
 
             time.sleep(1)
 
