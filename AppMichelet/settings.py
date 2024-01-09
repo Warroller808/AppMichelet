@@ -11,9 +11,10 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 import os
+import pytz
+import logging
 from pathlib import Path
 from celery.schedules import crontab
-import pytz
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -90,6 +91,11 @@ DATABASES = {
 }
 
 
+class IgnoreDisallowedHosts(logging.Filter):
+    def filter(self, record):
+        return "Invalid HTTP_HOST header" not in record.getMessage()
+    
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -107,6 +113,11 @@ LOGGING = {
             'formatter': 'standard',
         },
     },
+    'filters': {
+        'ignore_disallowed_hosts': {
+            '()': IgnoreDisallowedHosts,
+        },
+    },
     'root': {
         'level': 'ERROR',
         'handlers': ['file'],
@@ -116,6 +127,7 @@ LOGGING = {
             'handlers': ['file'],
             'level': 'ERROR',
             'propagate': False,
+            'filters': ['ignore_disallowed_hosts'],
         },
     },
 }
