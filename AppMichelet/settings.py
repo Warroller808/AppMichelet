@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 """
 
 import os
-import pytz
 import logging
 from pathlib import Path
 from celery.schedules import crontab
@@ -176,10 +175,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CELERY_BROKER_URL = "amqp://localhost"
 CELERY_RESULT_BACKEND = "amqp://localhost"
-
-CELERY_BEAT_SCHEDULE = {
-    'import_factures_auto': {
-        'task': 'App.tasks.async_import_factures_auto',
-        'schedule': crontab(hour=2, minute=0, timezone='Europe/Paris')
-    },
-}
