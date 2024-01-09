@@ -161,14 +161,13 @@ def tableau_generiques(request):
     laboratoires = Produit_catalogue.objects.exclude(fournisseur_generique='').values('fournisseur_generique').distinct()
     laboratoire_selectionne = request.GET.get('laboratoire', '')
 
-    tableau_generiques, colonnes, subquery, achats_labo = generer_tableau_generiques(laboratoire_selectionne)
+    tableau_generiques, colonnes, achats_labo = generer_tableau_generiques(laboratoire_selectionne)
 
     context = {
         'laboratoires': laboratoires,
         'laboratoire_selectionne': laboratoire_selectionne,
         'tableau_generiques': tableau_generiques,
         'colonnes': colonnes,
-        'subquery': subquery,
         'achats_labo': achats_labo,
     }
 

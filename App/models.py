@@ -23,7 +23,7 @@ class Produit_catalogue(models.Model):
         unique_together = ('code', 'annee')
     
 class Achat(models.Model):
-    code = models.CharField("PRODUIT", max_length=128, blank=False, default='')
+    code = models.CharField("CODE", max_length=128, blank=False, default='')
     produit = models.ForeignKey(Produit_catalogue, on_delete=models.PROTECT, null=True, default=None)
     designation = models.CharField("DESIGNATION", max_length=128, blank=True, default='')
     nb_boites = models.IntegerField("NB_BOITES",default=0)
@@ -41,7 +41,7 @@ class Achat(models.Model):
     categorie = models.CharField("CATEGORIE", max_length=128, default='')
 
     def __str__(self):
-        return f"{self.produit} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
+        return f"{self.code} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
     
 
 class Avoir_remises(models.Model):
@@ -155,6 +155,8 @@ class Command(BaseCommand):
                 produit.fournisseur_generique = determiner_fournisseur_generique(produit.designation)
                 produit.save()
                 print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
+            else:
+                produit.fournisseur_generique
 
 
     def calcul_remises():
@@ -199,3 +201,22 @@ class Command(BaseCommand):
 
         df.to_excel(excel_file_path, index=False)
 
+
+    def attribuer_produit_to_achats():
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+
+        achats_sans_produit = Achat.objects.filter(produit__isnull=True)
+
+        for achat in achats_sans_produit:
+            try:
+                produit = Produit_catalogue.objects.get(code=achat.code, annee=achat.date.year)
+                achat.produit = produit
+                achat.save()
+                print(f'Achat {achat.code} associé au produit {produit.code}')
+            except Exception as e:
+                print(f'Erreur sur l\'achat {achat.code} : {e}')
+
+        print('Mise à jour des achats terminée.')

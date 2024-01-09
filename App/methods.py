@@ -258,7 +258,7 @@ def save_data(table_donnees):
 
         #ON CREE L'ACHAT
         nouvel_achat = Achat(
-            code = dictligne["code"]
+            code = dictligne["code"],
             produit = produit,
             designation = dictligne["designation"],
             nb_boites = dictligne["nb_boites"],
@@ -531,23 +531,12 @@ def generer_tableau_generiques(fournisseur_generique):
 
     tableau_generiques = mois_annees_tab_generiques()
 
-    codes_teva = Produit_catalogue.objects.filter(fournisseur_generique=fournisseur_generique).values_list('code', flat=True)
-
-    # Récupérer les années des produits TEVA
-    annees_teva = Produit_catalogue.objects.filter(fournisseur_generique=fournisseur_generique).values_list('annee', flat=True)
-
-    codes_produits_labo = (
-        Achat.objects
-        .filter(
-            Q(produit__in=codes_teva) & Q(date__year__in=annees_teva)
-        )
-    )
-
     # Récupérer les achats qui correspondent aux critères spécifiés
     achats_labo = (
         Achat.objects
         .filter(
-            Q(produit__in=codes_teva) & Q(date__year__in=annees_teva)
+            produit__fournisseur_generique=fournisseur_generique,
+            categorie__startswith="GENERIQUE",
         )
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
         .values('mois', 'annee', 'fournisseur')
@@ -577,7 +566,7 @@ def generer_tableau_generiques(fournisseur_generique):
 
     tableau_generiques = quicksort_tableau(tableau_generiques)
 
-    return tableau_generiques, colonnes, codes_produits_labo, achats_labo
+    return tableau_generiques, colonnes, achats_labo
 
 
 def mois_annees_tab_generiques():
