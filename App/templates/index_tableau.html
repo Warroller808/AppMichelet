@@ -24,6 +24,11 @@
     <div class="content">
         <h1>Tableau synthèse</h1>
 
+        <h5>
+            Dernier import CERP SAE : {{ dernier_import_cerp }} <br>
+            Dernier import Digipharmacie : {{ dernier_import_digi }}
+        </h5>
+
         <form method="post" action="\tableau_synthese\">
             {% csrf_token %}
             <button type="submit">Afficher le tableau</button>
@@ -31,9 +36,8 @@
 
         {% if tableau_synthese_assiette_globale %}
 
-            <h6>Montant HT = Montant total HT avant remise, produits sur avoirs déduits
-                <br><br>
-            Remise HT = Montant total des remises théoriques selon catalogue, produits sur avoirs déduits</h6>
+            <h6>Montants HT = montants avant remise, avoirs déduits</h6>
+            
 
             <table border="1">
                 <thead>

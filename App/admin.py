@@ -8,7 +8,7 @@ class Produit_catalogueAdmin(admin.ModelAdmin):
 
 
 class AchatAdmin(admin.ModelAdmin):
-    search_fields = ['fournisseur']
+    search_fields = ['code', 'fournisseur']
 
 
 class Avoir_remisesAdmin(admin.ModelAdmin):

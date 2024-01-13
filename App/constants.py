@@ -19,7 +19,6 @@ LABORATOIRES_GENERIQUES = [
     "ZTV ",
     "ZENT ",
     " EG ",
-    " LEG "
     "ARROW",
     "ARW",
     "TEVA ",
@@ -27,7 +26,7 @@ LABORATOIRES_GENERIQUES = [
     "CRISTERS",
     "SUNPHARMA",
     "VIATRIS",
-    "ZYDUS",
+    "ZYDUS"
 ]
 
 
@@ -36,13 +35,14 @@ NON_GENERIQUES = [
     "VOGALENE",
     "VOGALIB",
     "BETADINE",
-    "TAREG",
+    "TAREG ",
+    " TAREG",
     "COLOPEG",
     "RASAGILINE",
     "OROCAL",
     "PELMEG",
     "TRANSPIPEG",
-    "XIMEPEG",
+    "XIMEPEG"
 ]
 
 
@@ -67,4 +67,6 @@ MARCHES_PRODUITS = [
     "NESTLE ",
     "NUTRISENS",
     "THUASNE",
+    "CLINUTREN",
+    "JELONET"
 ]

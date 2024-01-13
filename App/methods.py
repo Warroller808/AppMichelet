@@ -46,7 +46,7 @@ def get_factures_from_directory():
         return facture_paths
     
     except FileNotFoundError:
-        print("Le dossier des factures n'existe pas ou aucune facture n'a été trouvée.")
+        logger.error("Le dossier des factures n'existe pas ou aucune facture n'a été trouvée.")
         return []
     
 
@@ -57,7 +57,9 @@ def process_factures(facture_paths):
     success = True
 
     try:
-        for facture_path, facture_name in facture_paths:
+        for index, (facture_path, facture_name) in enumerate(facture_paths, start=1):
+
+            logger.error(f'Traitement du fichier {index}/{len(facture_paths)}')
 
             #Extraction des infos
             table_donnees, table_produits, events_facture, texte_page, tables_page, tables_page_2 = extract_data(facture_path, facture_name)
@@ -71,7 +73,7 @@ def process_factures(facture_paths):
 
         events.insert(0, "Importation terminée.")
         logger.error("Importation terminée.")
-        logger.error(events)
+        #logger.error(events)
 
     except Exception as e:
         logger.error(f'Erreur dans l\'exécution de process factures. Erreur : {e}')
@@ -92,7 +94,8 @@ def extract_data(facture_path, facture_name):
         for num_page in range(len(pdf.pages)):
             page = pdf.pages[num_page]
 
-            logger.error(f'{facture_name} - {num_page} en cours de traitement...')
+            if num_page % 40 == 0:
+                logger.error(f'({round(num_page / len(pdf.pages) * 100, 0)}%) {facture_name} - {num_page} en cours de traitement...')
 
             texte_page = page.extract_text()
             tables_page = []
@@ -213,7 +216,6 @@ def save_data(table_donnees):
         new_categorie = categoriser_achat(dictligne["designation"], dictligne["fournisseur"], dictligne["tva"], dictligne["prix_unitaire_ht"], dictligne["remise_pourcent"], coalia, generique, marche_produits, pharmupp, lpp)
 
         #IMPORTATION DU PRODUIT POUR AVOIR LA REMISE THEORIQUE
-
         if not Produit_catalogue.objects.filter(code=dictligne["code"], annee=dictligne["date"].year):
             #SI LE PRODUIT N'EXISTE PAS IL FAUT LE CREER
 
@@ -236,7 +238,9 @@ def save_data(table_donnees):
                 coalia = new_coalia,
                 remise_grossiste = "",
                 remise_direct = "",
-                tva = dictligne["tva"]
+                tva = dictligne["tva"],
+                date_creation = datetime.now(),
+                creation_auto = True
             )
             nouveau_produit.save()
             events.append(f'Le produit suivant a été créé sans remise, merci de compléter sa fiche dans l\'interface admin : {ligne[0]} - {ligne[1]}')
@@ -245,13 +249,15 @@ def save_data(table_donnees):
             #produit existe => mise à jour en fonction de la catégorie
             produit = Produit_catalogue.objects.get(code=dictligne["code"], annee=dictligne["date"].year)
             if produit.type == "":
-                if new_categorie.split()[0].upper() == "GENERIQUE" or new_categorie == "MARCHE PRODUITS":
+                if new_categorie.split()[0].upper() == "GENERIQUE":
+                    produit.type = "GENERIQUE"
+                    produit.save()
+                elif new_categorie == "MARCHE PRODUITS":
                     produit.type = new_categorie
                     produit.save()
             if new_categorie.split()[0].upper() == "GENERIQUE" and produit.fournisseur_generique == "":
-                if "TEVA" in dictligne["fournisseur"] or dictligne["fournisseur"] == "EG" or dictligne["fournisseur"] == "BIOGARAN"  or dictligne["fournisseur"] == "ARROW" :
-                    produit.fournisseur_generique = dictligne["fournisseur"].replace("AVOIR ", "")
-                    produit.save()
+                produit.fournisseur_generique = determiner_fournisseur_generique(dictligne["designation"], dictligne["fournisseur"])
+                produit.save()
 
         #ON IMPORTE LE PRODUIT A NOUVEAU
         produit = Produit_catalogue.objects.get(code=dictligne["code"], annee=dictligne["date"].year)
@@ -297,7 +303,7 @@ def generer_tableau_synthese():
         'ASSIETTE GLOBALE -9%',
         'NB BOITES >450€',
         'PARAPHARMACIE TOTAL HT',
-        'LPP 5.5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
+        'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
         'ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE',
         'REMISE OBTENUE ASSIETTE GLOBALE',
         'REMISE OBTENUE LPP',
@@ -306,7 +312,10 @@ def generer_tableau_synthese():
         'REMISE OBTENUE TOTAL',
     ]
     categories_autres = [
-        'GENERIQUE 2,1% TOTAL HT', 'GENERIQUE AUTRE TOTAL HT',
+        'GENERIQUE 2,1% TOTAL HT',
+        'GENERIQUE 5,5% TOTAL HT',
+        'GENERIQUE 10% TOTAL HT',
+        'GENERIQUE 20% TOTAL HT',
         "NON GENERIQUE DIRECT LABO TOTAL HT",
         'MARCHE PRODUITS TOTAL HT',
         'UPP TOTAL HT',
@@ -384,19 +393,52 @@ def remplir_valeurs_categories(data_dict, tableau, categories):
 
 def traitement_colonnes_assiette_globale(tableau, categories):
 
-    for colonne in range(len(categories)):
-        # on remplit les colonnes qui étaient à 0
-        if "-9%" in categories[colonne]:
-            for ligne in range(len(tableau)):
-                tableau[ligne][colonne + 1] = round(Decimal(tableau[ligne][colonne]) * Decimal(0.91), 2)
-        elif "ASSIETTE GLOBALE REMISE TOTALE" in categories[colonne]:
-            for ligne in range(len(tableau)):
-                remise_totale = round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.025), 2)
-                remise_totale += round(Decimal(tableau[ligne][colonne - 3]) * Decimal(15), 2)
-                remise_totale += round(Decimal(tableau[ligne][colonne - 2]) * Decimal(0.038), 2)
-                remise_totale += round((Decimal(tableau[ligne][colonne - 1]) + Decimal(tableau[ligne][colonne])) * Decimal(0.038), 2)
-                remise_totale += round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.013), 2)
-                tableau[ligne][colonne + 1] = remise_totale
+    data_dict_nb_boites = {}
+
+    try:
+        data_nb_boites = (
+            Achat.objects
+            .filter(categorie=">450€ tva 2,1%")
+            .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+            .values('mois', 'annee')
+            .annotate(total_boites=Sum('nb_boites'))
+        )
+
+        for entry in data_nb_boites:
+                mois_annee = f"{entry['mois']}/{entry['annee']}"
+                total_boites = entry['total_boites']
+                #remise_theorique_totale = entry['remise_theorique_totale']
+
+                # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
+                if mois_annee not in data_dict_nb_boites:
+                    data_dict_nb_boites[mois_annee] = {}
+
+                # Remplissage du dictionnaire avec les valeurs
+                data_dict_nb_boites[mois_annee]["Total_boites"] = total_boites
+                #data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
+
+        for colonne in range(len(categories)):
+            # on remplit les colonnes qui étaient à 0
+            if "-9%" in categories[colonne]:
+                for ligne in range(len(tableau)):
+                    tableau[ligne][colonne + 1] = round(Decimal(tableau[ligne][colonne]) * Decimal(0.91), 2)
+            elif "ASSIETTE GLOBALE REMISE TOTALE" in categories[colonne]:
+                for ligne in range(len(tableau)):
+                    remise_totale = round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.025), 2)
+                    remise_totale += round(Decimal(tableau[ligne][colonne - 3]) * Decimal(15), 2)
+                    remise_totale += round(Decimal(tableau[ligne][colonne - 2]) * Decimal(0.038), 2)
+                    remise_totale += round((Decimal(tableau[ligne][colonne - 1]) + Decimal(tableau[ligne][colonne])) * Decimal(0.038), 2)
+                    remise_totale += round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.013), 2)
+                    tableau[ligne][colonne + 1] = remise_totale
+            elif "NB BOITES" in categories[colonne]:
+                for ligne in range(len(tableau)):
+                    if tableau[ligne][0] in data_dict_nb_boites:
+                        tableau[ligne][colonne + 1] = data_dict_nb_boites[tableau[ligne][0]]["Total_boites"]
+                    else:
+                        tableau[ligne][colonne + 1] = round(Decimal(0), 0)
+
+    except Exception as e:
+        logger.error(f'Erreur de traitement des colonnes assiette globale : {e}')
 
     return tableau
 
@@ -432,7 +474,8 @@ def traitement_total_general(tableau_assiette_globale, tableau_autres):
         total_general += Decimal(tableau_autres[ligne][1]) + Decimal(tableau_autres[ligne][2])
         total_general += Decimal(tableau_autres[ligne][3]) + Decimal(tableau_autres[ligne][4])
         total_general += Decimal(tableau_autres[ligne][5]) + Decimal(tableau_autres[ligne][6])
-        total_general += Decimal(tableau_autres[ligne][7])
+        total_general += Decimal(tableau_autres[ligne][7]) + Decimal(tableau_autres[ligne][8])
+        total_general += Decimal(tableau_autres[ligne][9])
         tableau_autres[ligne][-1] = total_general
     
     return tableau_autres
@@ -491,15 +534,7 @@ def totaux_pourcentages_par_annee(tableau, categories):
                 #print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
                 #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
-                pourcentages = ['']
-                for colonne in range(1, len(tableau[0])):
-                    if "REMISE" in categories[colonne - 1]:
-                        if totaux[colonne - 1] != 0:
-                            pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
-                        else:
-                            pourcentages.append('NA')
-                    else:
-                        pourcentages.append('')
+                pourcentages = calcul_pourcentages(len(tableau[0]), totaux, categories)
 
                 tableau.insert(ligne, totaux)
                 tableau.insert(ligne + 1, pourcentages)
@@ -518,28 +553,49 @@ def totaux_pourcentages_par_annee(tableau, categories):
     return tableau
 
 
+def calcul_pourcentages(taille_tableau, totaux, categories):
+
+    pourcentages = ['']
+    for colonne in range(1, taille_tableau):
+        if "REMISE OBTENUE TOTAL" in categories[colonne - 1]:
+            if totaux[colonne - 5] != 0:
+                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 5] * 100, 2)} %')
+            else:
+                pourcentages.append('NA')
+        else:
+            pourcentages.append('')
+
+    return pourcentages
+
 def generer_tableau_generiques(fournisseur_generique):
     
     colonnes = [
-        "DIRECT MONTANT HT",
-        "DIRECT REMISE THEORIQUE",
-        "DIRECT REMISE OBTENUE",
-        "GROSSISTE MONTANT HT",
+        "GROSSISTE 2,1% MONTANT HT",
+        "GROSSISTE 5,5% MONTANT HT",
+        "GROSSISTE 10% MONTANT HT",
+        "GROSSISTE 20% MONTANT HT",
         "GROSSISTE REMISE THEORIQUE",
         "GROSSISTE REMISE OBTENUE",
+        "DIRECT 2,1% MONTANT HT",
+        "DIRECT 5,5% MONTANT HT",
+        "DIRECT 10% MONTANT HT",
+        "DIRECT 20% MONTANT HT",
+        "DIRECT NON GENERIQUES MONTANT HT",
+        "DIRECT REMISE THEORIQUE",
+        "DIRECT REMISE OBTENUE",
     ]
 
-    tableau_generiques = mois_annees_tab_generiques()
+    tableau_generiques = mois_annees_tab_generiques(len(colonnes))
 
     # Récupérer les achats qui correspondent aux critères spécifiés
     achats_labo = (
         Achat.objects
         .filter(
             produit__fournisseur_generique=fournisseur_generique,
-            categorie__startswith="GENERIQUE",
+            categorie__icontains="GENERIQUE",
         )
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee', 'fournisseur')
+        .values('mois', 'annee', 'categorie', 'fournisseur')
         .annotate(
             total_ht_hors_remise=Sum('montant_ht_hors_remise'),
             remise_theorique_totale=Sum('remise_theorique_totale'),
@@ -547,20 +603,37 @@ def generer_tableau_generiques(fournisseur_generique):
         )
     )
 
-    print(achats_labo)
-
     for entry in achats_labo:
         mois_annee = f"{entry['mois']}/{entry['annee']}"
         for ligne in tableau_generiques:
             if ligne[0] == mois_annee:
                 if 'CERP' in entry['fournisseur']:
-                    ligne[4] = round(entry['total_ht_hors_remise'], 2)
-                    ligne[5] = round(entry['remise_theorique_totale'], 2)
-                    #ligne[6] = round(entry['remise_obtenue'], 2)
+                    if '2,1%' in entry['categorie']:
+                        ligne[1] = Decimal(ligne[1]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5,5%' in entry['categorie']:
+                        ligne[2] = Decimal(ligne[2]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie']:
+                        ligne[3] = Decimal(ligne[3]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie']:
+                        ligne[4] = Decimal(ligne[4]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[5] = Decimal(ligne[5]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[6] = Decimal(ligne[6]) + round(entry['remise_obtenue'], 2)
+
                 elif entry['fournisseur'] != "":
-                    ligne[1] = round(entry['total_ht_hors_remise'], 2)
-                    ligne[2] = round(entry['remise_theorique_totale'], 2)
-                    #ligne[3] = round(entry['remise_obtenue'], 2)
+                    if '2,1%' in entry['categorie']:
+                        ligne[7] = Decimal(ligne[7]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5,5%' in entry['categorie']:
+                        ligne[8] = Decimal(ligne[8]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie']:
+                        ligne[9] = Decimal(ligne[9]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie']:
+                        ligne[10] = Decimal(ligne[10]) + round(entry['total_ht_hors_remise'], 2)
+                    elif 'NON GENERIQUE' in entry['categorie']:
+                        ligne[11] = Decimal(ligne[11]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[12] = Decimal(ligne[12]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[13] = Decimal(ligne[13]) + round(entry['remise_obtenue'], 2)
 
     #print(tableau_generiques)
 
@@ -569,7 +642,7 @@ def generer_tableau_generiques(fournisseur_generique):
     return tableau_generiques, colonnes, achats_labo
 
 
-def mois_annees_tab_generiques():
+def mois_annees_tab_generiques(nb_colonnes):
     tableau=[]
     mois_annees = []
 
@@ -586,7 +659,8 @@ def mois_annees_tab_generiques():
             mois_annees.append(mois_annee)
 
     for ma in mois_annees:
-        tableau.append([ma, 0, 0, 0, 0, 0, 0])
+        nouvelle_ligne = [ma] + [0] * (nb_colonnes)
+        tableau.append(nouvelle_ligne)
 
     return tableau
 

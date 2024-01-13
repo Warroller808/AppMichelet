@@ -24,6 +24,11 @@
     <div class="content">
         <h1>Tableau génériques</h1>
 
+        <h5>
+            Dernier import CERP SAE : {{ dernier_import_cerp }} <br>
+            Dernier import Digipharmacie : {{ dernier_import_digi }}
+        </h5>
+
         <form method="get" action="\tableau_generiques\">
             <label for="laboratoire">Sélectionnez un laboratoire :</label>
             <select name="laboratoire" id="laboratoire">

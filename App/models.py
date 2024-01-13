@@ -15,6 +15,8 @@ class Produit_catalogue(models.Model):
     remise_grossiste = models.CharField("REMISE_GROSSISTE", max_length=128, default="")
     remise_direct = models.CharField("REMISE_DIRECT", max_length=128, default="")
     tva = models.DecimalField("TVA", max_digits=15, decimal_places=3, default=0.00)
+    date_creation = models.DateField("DATE CREATION", blank=True, default=datetime.now)
+    creation_auto = models.BooleanField("CREATION AUTO", default=True)
 
     def __str__(self):
         return f"{self.code}"
@@ -117,68 +119,50 @@ class Command(BaseCommand):
             resultat_suppression_achats = f"Erreur lors de la suppression des achats : {str(e)}"
         
         return resultat_suppression_achats
-    
-    def categoriser_achats():
-        from .utils import categoriser_achat
-
-        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
-        if not confirmation:
-            return "Script non exécuté"
-
-        achats = Achat.objects.all()
-        prev_categorie = ""
-
-        for achat in achats:
-            prev_categorie = achat.categorie
-            
-            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
-            achat.categorie = categoriser_achat(achat.designation, achat.fournisseur, achat.tva, achat.prix_unitaire_ht, achat.remise_pourcent, produit.coalia, produit.type == "GENERIQUE", produit.type == "MARCHE PRODUITS", produit.pharmupp, produit.lpp)
-
-            achat.save()
-
-            if achat.categorie != prev_categorie:
-                print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
-
+        
 
     def completer_fournisseur_generique():
-        from .utils import determiner_fournisseur_generique
+        from .jobs import completer_fournisseur_generique_job
 
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:
             return "Script non exécuté"
         
-        produits = Produit_catalogue.objects.all()
+        try:
+            completer_fournisseur_generique_job()
+            print("Succès")
 
-        for produit in produits:
-            if produit.type == "GENERIQUE":
-                prev_fournisseur = produit.fournisseur_generique
-                produit.fournisseur_generique = determiner_fournisseur_generique(produit.designation)
-                produit.save()
-                print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
-            else:
-                produit.fournisseur_generique
+        except Exception as e:
+            print(f'Echec : {e}')
+    
+    def categoriser_achats():
+        from .jobs import categoriser_achats_job
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+
+        try:
+            categoriser_achats_job()
+            print("Succès")
+            
+        except Exception as e:
+            print(f'Echec : {e}')
 
 
     def calcul_remises():
-        from .utils import calculer_remise_theorique
+        from .jobs import calcul_remises_job
 
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:
             return "Script non exécuté"
         
-        achats = Achat.objects.all()
-        prev_remise = 0
-
-        for achat in achats:
-            prev_remise = achat.remise_theorique_totale
-
-            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
-            achat = calculer_remise_theorique(produit, achat)
-
-            achat.save()
-
-            if achat.remise_theorique_totale != prev_remise:
-                print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
+        try:
+            calcul_remises_job()
+            print("Succès")
+            
+        except Exception as e:
+            print(f'Echec : {e}')
 
 
     def afficher_achat():
@@ -192,10 +176,48 @@ class Command(BaseCommand):
         from AppMichelet.settings import BASE_DIR
         import pandas as pd
         import os
+        from django.db.models import F
 
-        excel_file_path = os.path.join(BASE_DIR, 'extractions/Produits_categorises.xlsx')
+        excel_file_path = os.path.join(BASE_DIR, f'extractions/Produits_categorises_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
 
-        data = Achat.objects.values('produit', 'designation', 'tva', 'fournisseur', 'categorie').distinct()
+        data = Achat.objects.values(
+            'code',
+            'designation',
+            'tva',
+            'prix_unitaire_ht',
+            'remise_pourcent',
+            'fournisseur',
+            'categorie',
+            type=F('produit__type'),
+            fournisseur_generique=F('produit__fournisseur_generique')
+        ).distinct()
+
+        df = pd.DataFrame.from_records(data)
+
+        df.to_excel(excel_file_path, index=False)
+
+
+    def extraire_catalogue():
+        from AppMichelet.settings import BASE_DIR
+        import pandas as pd
+        import os
+        from django.db.models import F
+
+        excel_file_path = os.path.join(BASE_DIR, f'extractions/Catalogue_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
+
+        data = Produit_catalogue.objects.values(
+            'code',
+            'annee',
+            'designation',
+            'type',
+            'fournisseur_generique',
+            'coalia',
+            'pharmupp',
+            'lpp',
+            'remise_grossiste',
+            'remise_direct',
+            'tva'
+        ).distinct()
 
         df = pd.DataFrame.from_records(data)
 

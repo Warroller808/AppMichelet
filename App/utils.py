@@ -1,9 +1,9 @@
+import os
 import re
 import logging
 from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises
 import json
 from datetime import datetime, timedelta
-from .constants import *
 from decimal import Decimal
 
 
@@ -307,14 +307,12 @@ def process_avoir_remises(format, tables_page, numero, date):
 def choix_remise_grossiste(produit: Produit_catalogue, categorie, nb_boites):
     remise = 0
 
-    if categorie == "<450€ tva 2,1%" or categorie == "LPP" or categorie == "PARAPHARMACIE":
+    if categorie == "<450€ tva 2,1%" or "LPP" in categorie or categorie == "PARAPHARMACIE":
         #2,5 % de remise sur le HT puis un avantage commercial qui correspond à la différence avec la remise obtenue si a 3,80 %
         remise = 0.038
-    elif categorie == ">450€ <1500€ tva 2,1%":
+    elif categorie == ">450€ tva 2,1%":
         #ici remise en € par boîte
         remise = nb_boites * 15
-    elif categorie == ">1500€ tva 2,1%":
-        remise = 0
 
     return remise
 
@@ -372,7 +370,40 @@ def extraire_produits(format, fournisseur, tables_page):
     return produits
 
 
+def determiner_fournisseur_generique(designation, fournisseur=None):
+    from .constants import LABORATOIRES_GENERIQUES
+
+    new_fournisseur_generique = ""
+
+    if fournisseur is not None:
+        if fournisseur == "TEVA" or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
+            new_fournisseur_generique = fournisseur
+    
+    if new_fournisseur_generique == "":
+        if any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
+            for element in LABORATOIRES_GENERIQUES:
+                if element in designation.upper():
+                    if element == "BIOG" or element == "BGR ":
+                        new_fournisseur_generique = "BIOGARAN"
+                    elif element == "SDZ " or element == "SAND ":
+                        new_fournisseur_generique = "SANDOZ"
+                    elif element == "ZTV " or element == "ZENT ":
+                        new_fournisseur_generique = "ZENTIVA"
+                    elif element == " LEG " or element == " EG ":
+                        new_fournisseur_generique = "EG"
+                    elif element == "ARW":
+                        new_fournisseur_generique = "ARROW"
+                    elif element == "MYLAN":
+                        new_fournisseur_generique = "VIATRIS"
+                    else:
+                        new_fournisseur_generique = element.replace(" ", "")
+
+    return new_fournisseur_generique
+
+
 def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp, lpp):
+    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES
+    
     new_categorie = ""
     
     try:
@@ -381,13 +412,17 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         elif fournisseur == "CERP PHARMAT" or fournisseur == "PHARMAT" :
             new_categorie = "PHARMAT"
         elif "CERP" in fournisseur:
-            if generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
+            if (generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES)) and not any(element in designation.upper() for element in NON_GENERIQUES):
                 if (tva > 0.0209 and tva < 0.0211):
                     new_categorie = "GENERIQUE 2,1%"
-                elif tva > 0.0211:
-                    new_categorie = "GENERIQUE AUTRE"
+                elif (tva > 0.0549 and tva < 0.0551):
+                    new_categorie = "GENERIQUE 5,5%"
+                elif (tva > 0.099 and tva < 0.101):
+                    new_categorie = "GENERIQUE 10%"
+                elif (tva > 0.199 and tva < 0.201):
+                    new_categorie = "GENERIQUE 20%"
                 else:
-                    new_categorie = "PROBLEME TVA GENERIQUE"
+                    new_categorie = "PROBLEME TVA GENERIQUE GROSSISTE"
             elif marche_produits or any(element in designation.upper() for element in MARCHES_PRODUITS):
                 new_categorie = "MARCHE PRODUITS"
             elif coalia or pharmupp:
@@ -395,7 +430,7 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
             elif lpp:
                 if (tva > 0.0549 and tva < 0.0551) or (tva > 0.099 and tva < 0.101):
                     new_categorie = "LPP 5,5 OU 10%"
-                elif tva > 0.199 and tva < 0.201:
+                elif (tva > 0.199 and tva < 0.201):
                     new_categorie = "LPP 20%"
                 else:
                     new_categorie = "PROBLEME TVA LPP"
@@ -407,19 +442,26 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                 new_categorie = ">450€ tva 2,1%"
             elif (tva > 0.0549 and tva < 0.0551) or (tva > 0.099 and tva < 0.101):
                 new_categorie = "NON CATEGORISE CERP 5,5 OU 10"
-            elif tva > 0.199 and tva < 0.201:
+            elif (tva > 0.199 and tva < 0.201):
                 new_categorie = "PARAPHARMACIE"
             else:
                 new_categorie = "NON CATEGORISE CERP"
         elif "TEVA" in fournisseur or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
-            if remise_pourcent > 0 or any(element in designation.upper() for element in NON_GENERIQUES):
+            if any(element in designation.upper() for element in NON_GENERIQUES):
                 new_categorie = "NON GENERIQUE DIRECT LABO"
-            elif (tva > 0.0209 and tva < 0.0211):
-                new_categorie = "GENERIQUE 2,1%"
-            elif tva > 0.0211:
-                new_categorie = "GENERIQUE AUTRE"
+            elif generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
+                if (tva > 0.0209 and tva < 0.0211):
+                    new_categorie = "GENERIQUE 2,1%"
+                elif (tva > 0.0549 and tva < 0.0551):
+                    new_categorie = "GENERIQUE 5,5%"
+                elif (tva > 0.099 and tva < 0.101):
+                    new_categorie = "GENERIQUE 10%"
+                elif (tva > 0.199 and tva < 0.201):
+                    new_categorie = "GENERIQUE 20%"
+                else:
+                    new_categorie = "PROBLEME TVA GENERIQUE DIRECT"
             else:
-                new_categorie = "GENERIQUE PROBLEME TVA"
+                new_categorie = "DIRECT GENERIQUE NON CATEGORISE"
         else:
             new_categorie = "NON CATEGORISE"
 
@@ -445,14 +487,14 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
             #Cas particulier Pharmat car pas de remises catalogue
             if nouvel_achat.remise_pourcent != 0:
                 nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(nouvel_achat.remise_pourcent), 4)
-        elif "CERP" not in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE":
+        elif "CERP" not in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE" or "NON GENERIQUE" in nouvel_achat.categorie:
             #GENERIQUE NON CERP donc en direct
             if produit.remise_direct:
                 for r in json.loads(produit.remise_direct):
                     if nouvel_achat.nb_boites >= r[0]:
                         remise = r[1]
                 nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(remise), 4)
-        elif "CERP" in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE":
+        elif "CERP" in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE" or "NON GENERIQUE" in nouvel_achat.categorie:
             #GENERIQUE CERP
             if produit.remise_grossiste:
                 for r in json.loads(produit.remise_grossiste):
@@ -482,34 +524,6 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
         logger.error(f'remise théorique non calculée pour l\'achat {nouvel_achat.produit} du {nouvel_achat.date} : {e}')
         
     return nouvel_achat
-
-
-def determiner_fournisseur_generique(designation, fournisseur=None):
-
-    new_fournisseur_generique = ""
-
-    if fournisseur is not None:
-        if fournisseur == "TEVA" or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
-            new_fournisseur_generique = fournisseur
-    
-    if new_fournisseur_generique == "":
-        if any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
-            for element in LABORATOIRES_GENERIQUES:
-                if element in designation.upper():
-                    if element == "BIOG" or element == "BGR ":
-                        new_fournisseur_generique = "BIOGARAN"
-                    elif element == "SDZ " or element == "SAND ":
-                        new_fournisseur_generique = "SANDOZ"
-                    elif element == "ZTV " or element == "ZENT ":
-                        new_fournisseur_generique = "ZENTIVA"
-                    elif element == " LEG " or element == " EG ":
-                        new_fournisseur_generique = "EG"
-                    elif element == "ARW":
-                        new_fournisseur_generique = "ARROW"
-                    else:
-                        new_fournisseur_generique = element.strip()
-
-    return new_fournisseur_generique
 
 
 def convert_date(date_str):

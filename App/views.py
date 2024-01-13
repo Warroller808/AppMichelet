@@ -1,12 +1,13 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.http import HttpResponse
 from .methods import *
 import pandas as pd
-from .models import Produit_catalogue
+from .models import Produit_catalogue, Constante
 from datetime import datetime
 import logging
-from .tasks import async_import_factures_auto, async_import_factures_depuis_dossier
+from .tasks import async_import_factures_depuis_dossier
 
 # Create your views here.
 
@@ -47,7 +48,7 @@ def upload_factures(request):
     return render(request, 'index.html')
 
 
-@login_required
+@staff_member_required
 def upload_catalogue_excel(request):
     if request.method == 'POST':
 
@@ -65,7 +66,9 @@ def upload_catalogue_excel(request):
                 'fournisseur_generique': '',
                 'remise_grossiste': '',
                 'remise_direct': '',
-                'tva': 0
+                'tva': 0,
+                'date_creation': datetime.now(),
+                'creation_auto' : False
             }
             
             df.fillna(default_values, inplace=True)
@@ -95,6 +98,9 @@ def upload_catalogue_excel(request):
                     if produit_catalogue.pharmupp != bool(row['pharmupp']):
                         produit_catalogue.pharmupp = bool(row['pharmupp'])
                         changed = True
+                    if produit_catalogue.lpp != bool(row['lpp']):
+                        produit_catalogue.lpp = bool(row['lpp'])
+                        changed = True
                     if produit_catalogue.remise_grossiste != str(row['remise_grossiste']):
                         produit_catalogue.remise_grossiste = str(row['remise_grossiste'])
                         changed = True
@@ -103,6 +109,14 @@ def upload_catalogue_excel(request):
                         changed = True
                     if produit_catalogue.tva != float(row['tva']):
                         produit_catalogue.tva = float(row['tva'])
+                        changed = True
+                    dateobjet = datetime(produit_catalogue.date_creation.year, produit_catalogue.date_creation.month, produit_catalogue.date_creation.day)
+                    datefichier = datetime(row['date_creation'].year, row['date_creation'].month, row['date_creation'].day)
+                    if dateobjet != datefichier:
+                        produit_catalogue.date_creation = row['date_creation']
+                        changed = True
+                    if produit_catalogue.creation_auto != bool(row['creation_auto']):
+                        produit_catalogue.creation_auto = bool(row['creation_auto'])
                         changed = True
 
                     produit_catalogue.save()
@@ -118,6 +132,8 @@ def upload_catalogue_excel(request):
                     produit_catalogue.remise_grossiste = str(row['remise_grossiste'])
                     produit_catalogue.remise_direct = str(row['remise_direct'])
                     produit_catalogue.tva = float(row['tva'])
+                    produit_catalogue.date_creation = row['date_creation']
+                    produit_catalogue.creation_auto = bool(row['creation_auto'])
 
                     produit_catalogue.save()
                     events.append(f'Le produit {code} a été ajouté')
@@ -139,6 +155,9 @@ def upload_catalogue_excel(request):
 @login_required
 def tableau_synthese(request):
 
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
     #Générer le tableau dans methods
     if request.method == 'POST':
 
@@ -149,15 +168,23 @@ def tableau_synthese(request):
             'tableau_synthese_autres': tableau_synthese_autres,
             'tableau_generiques': tableau_generiques,
             'categories_assiette_globale': categories_assiette_globale,
-            'categories_autres': categories_autres
+            'categories_autres': categories_autres,
+            'dernier_import_cerp' : dernier_import_cerp,
+            'dernier_import_digi' : dernier_import_digi
         })
 
-    return render(request, 'index_tableau.html')
+    return render(request, 'index_tableau.html', {
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    })
 
 
 @login_required
 def tableau_generiques(request):
-    
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
     laboratoires = Produit_catalogue.objects.exclude(fournisseur_generique='').values('fournisseur_generique').distinct()
     laboratoire_selectionne = request.GET.get('laboratoire', '')
 
@@ -169,16 +196,18 @@ def tableau_generiques(request):
         'tableau_generiques': tableau_generiques,
         'colonnes': colonnes,
         'achats_labo': achats_labo,
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
     }
 
     return render(request, 'index_tableau_generiques.html', context)
 
 
-@login_required
+@staff_member_required
 def lancer_import_auto(request):
     if request.method == 'POST':
         logger.error('Lancer import auto test')
         #async_import_factures_auto.delay()
-        async_import_factures_depuis_dossier()
+        async_import_factures_depuis_dossier.delay()
 
     return render(request, 'index.html')

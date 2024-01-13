@@ -5,7 +5,7 @@ from .methods import get_factures_from_directory, process_factures
 from .constants import DL_FOLDER_PATH_AUTO
 from .selenium_cerp import main_cerp
 from .selenium_digipharmacie import main_digi
-from .models import Constante
+from .models import Constante, Produit_catalogue, Achat
 
 
 logger = logging.getLogger(__name__)
@@ -46,3 +46,86 @@ def import_factures_auto():
             logger.error("Aucune facture n'a été téléchargée aujourd'hui")
     else:
         logger.error('Erreur d\'importation sur les deux sites, les fichiers téléchargés ont été conservés.')
+
+    logger.error("Completion des fournisseurs génériques...")
+    completer_fournisseur_generique_job()
+
+    logger.error("Catégorisation des achats...")
+    categoriser_achats_job()
+
+    logger.error("Calcul des remises...")
+    calcul_remises_job()
+
+
+def completer_fournisseur_generique_job():
+    from .utils import determiner_fournisseur_generique
+
+    try:
+        produits = Produit_catalogue.objects.all()
+
+        for produit in produits:
+            type_change = ""
+            new_fournisseur_generique = determiner_fournisseur_generique(produit.designation)
+
+            if new_fournisseur_generique != "":
+                prev_fournisseur = produit.fournisseur_generique
+                produit.fournisseur_generique = new_fournisseur_generique
+                if produit.type == "":
+                    produit.type = "GENERIQUE"
+                    type_change = f'Le produit a été typé comme générique'
+                produit.save()
+                if prev_fournisseur != new_fournisseur_generique or type_change != "":
+                    print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique} // {type_change}')
+
+        logger.error("Succès de la complétion du fournisseur générique.")
+
+    except Exception as e:
+        logger.error(f"Echec de la complétion du fournisseur générique : {e}")
+    
+
+def categoriser_achats_job():
+    from .utils import categoriser_achat
+
+    try:
+        achats = Achat.objects.all()
+        prev_categorie = ""
+
+        for achat in achats:
+            prev_categorie = achat.categorie
+            
+            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
+            achat.categorie = categoriser_achat(achat.designation, achat.fournisseur, achat.tva, achat.prix_unitaire_ht, achat.remise_pourcent, produit.coalia, produit.type == "GENERIQUE", produit.type == "MARCHE PRODUITS", produit.pharmupp, produit.lpp)
+
+            achat.save()
+
+            if achat.categorie != prev_categorie:
+                print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
+
+        logger.error("Succès de la catégorisation des achats.")
+
+    except Exception as e:
+        logger.error(f"Echec de la catégorisation des achats : {e}")
+
+
+def calcul_remises_job():
+    from .utils import calculer_remise_theorique
+    
+    try:
+        achats = Achat.objects.all()
+        prev_remise = 0
+
+        for achat in achats:
+            prev_remise = achat.remise_theorique_totale
+
+            produit = Produit_catalogue.objects.get(code=achat.produit, annee=achat.date.year)
+            achat = calculer_remise_theorique(produit, achat)
+
+            achat.save()
+
+            if achat.remise_theorique_totale != prev_remise:
+                print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
+
+        logger.error("Succès du calcul des remises théoriques.")
+
+    except Exception as e:
+        logger.error(f"Echec du calcul des remises théoriques : {e}")
