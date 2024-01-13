@@ -56,12 +56,15 @@ def import_factures_auto():
     logger.error("Calcul des remises...")
     calcul_remises_job()
 
+    logger.error("Traitement quotidien terminé.")
+
 
 def completer_fournisseur_generique_job():
     from .utils import determiner_fournisseur_generique
 
     try:
         produits = Produit_catalogue.objects.all()
+        compteur = 0
 
         for produit in produits:
             type_change = ""
@@ -75,9 +78,10 @@ def completer_fournisseur_generique_job():
                     type_change = f'Le produit a été typé comme générique'
                 produit.save()
                 if prev_fournisseur != new_fournisseur_generique or type_change != "":
+                    compteur += 1
                     print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique} // {type_change}')
 
-        logger.error("Succès de la complétion du fournisseur générique.")
+        logger.error(f"Succès de la complétion du fournisseur générique. {compteur} modifications effectuées")
 
     except Exception as e:
         logger.error(f"Echec de la complétion du fournisseur générique : {e}")
@@ -89,6 +93,7 @@ def categoriser_achats_job():
     try:
         achats = Achat.objects.all()
         prev_categorie = ""
+        compteur = 0
 
         for achat in achats:
             prev_categorie = achat.categorie
@@ -101,7 +106,7 @@ def categoriser_achats_job():
             if achat.categorie != prev_categorie:
                 print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
 
-        logger.error("Succès de la catégorisation des achats.")
+        logger.error(f"Succès de la catégorisation des achats. {compteur} modifications effectuées")
 
     except Exception as e:
         logger.error(f"Echec de la catégorisation des achats : {e}")
@@ -113,6 +118,7 @@ def calcul_remises_job():
     try:
         achats = Achat.objects.all()
         prev_remise = 0
+        compteur = 0
 
         for achat in achats:
             prev_remise = achat.remise_theorique_totale
@@ -125,7 +131,7 @@ def calcul_remises_job():
             if achat.remise_theorique_totale != prev_remise:
                 print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
 
-        logger.error("Succès du calcul des remises théoriques.")
+        logger.error(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")
 
     except Exception as e:
         logger.error(f"Echec du calcul des remises théoriques : {e}")

@@ -188,6 +188,9 @@ def tableau_generiques(request):
     laboratoires = Produit_catalogue.objects.exclude(fournisseur_generique='').values('fournisseur_generique').distinct()
     laboratoire_selectionne = request.GET.get('laboratoire', '')
 
+    if not laboratoire_selectionne and laboratoires:
+        laboratoire_selectionne = laboratoires[0]['fournisseur_generique']
+
     tableau_generiques, colonnes, achats_labo = generer_tableau_generiques(laboratoire_selectionne)
 
     context = {

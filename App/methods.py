@@ -562,6 +562,16 @@ def calcul_pourcentages(taille_tableau, totaux, categories):
                 pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 5] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
+        elif "GROSSISTE REMISE OBTENUE" in categories[colonne - 1]:
+            if totaux[colonne - 1] != 0:
+                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+            else:
+                pourcentages.append('NA')
+        elif "DIRECT REMISE OBTENUE" in categories[colonne - 1]:
+            if totaux[colonne - 1] != 0:
+                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+            else:
+                pourcentages.append('NA')
         else:
             pourcentages.append('')
 
@@ -638,6 +648,8 @@ def generer_tableau_generiques(fournisseur_generique):
     #print(tableau_generiques)
 
     tableau_generiques = quicksort_tableau(tableau_generiques)
+
+    tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes)
 
     return tableau_generiques, colonnes, achats_labo
 
