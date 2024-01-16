@@ -201,8 +201,16 @@ def process_tables(format, tables_page):
                                         donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")))
                                     else:
                                         donnees_ligne.append(float(ligne_sans_none[format_facture.indice_remise_pourcent].replace(",",".").replace(" ","").replace("%","")) / 100)
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else:
+                                    donnees_ligne.append(0)
+                            elif ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht] != "" and ligne_sans_none[format_facture.indice_prix_unitaire_ht] != "":
+                                if float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")) != 0:
+                                    donnees_ligne.append(
+                                        1 - (float(ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht].replace(",",".").replace(" ","")) 
+                                        / float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")))
+                                    )
+                                else:
+                                    donnees_ligne.append(0)
 
                             if format_facture.indice_montant_ht_hors_remise != -1:
                                 if ligne_sans_none[format_facture.indice_montant_ht_hors_remise] != "":
@@ -389,7 +397,7 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
                         new_fournisseur_generique = "SANDOZ"
                     elif element == "ZTV " or element == "ZENT ":
                         new_fournisseur_generique = "ZENTIVA"
-                    elif element == " LEG " or element == " EG ":
+                    elif element == " EG ":
                         new_fournisseur_generique = "EG"
                     elif element == "ARW":
                         new_fournisseur_generique = "ARROW"
@@ -550,3 +558,15 @@ def supprimer_fichiers_dossier(dossier, critere=""):
         if os.path.isfile(chemin_fichier):
             if critere in chemin_fichier:
                 os.remove(chemin_fichier)
+
+
+def get_col_index(titre_colonne, tableau):
+    try:
+        for colonne in range(len(tableau)):
+            if tableau[0][colonne] == titre_colonne:
+                return colonne
+            
+    except:
+        for colonne in range(len(tableau)):
+            if tableau[colonne] == titre_colonne:
+                return colonne

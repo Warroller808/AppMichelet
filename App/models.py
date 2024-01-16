@@ -171,6 +171,35 @@ class Command(BaseCommand):
         for achat in achats:
             print(vars(achat))
 
+    
+    def calcul_remise_pourcent_si_absente():
+        from decimal import Decimal
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        try:
+            achats = Achat.objects.all()
+            prev_pourcentage = 0
+            compteur = 0
+
+            for achat in achats:
+                if (achat.remise_pourcent > -0.0001 and achat.remise_pourcent < 0.0001) and achat.prix_unitaire_remise_ht > 0.1:
+                    prev_pourcentage = Decimal(achat.remise_pourcent)
+
+                    achat.remise_pourcent = round(Decimal(1) - (Decimal(achat.prix_unitaire_remise_ht) / Decimal(achat.prix_unitaire_ht)), 4)
+
+                    achat.save()
+
+                    if achat.remise_pourcent != prev_pourcentage:
+                        print(f'pourcentage de remise modifié pour l\'achat {achat.produit} {achat.date} {achat.fournisseur} : {prev_pourcentage} => {achat.remise_pourcent}')
+
+            print(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")
+
+        except Exception as e:
+            print(f"Echec du calcul des remises théoriques : {e}")
+
 
     def extraire_produits_categorises():
         from AppMichelet.settings import BASE_DIR

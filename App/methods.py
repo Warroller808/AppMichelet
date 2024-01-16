@@ -299,9 +299,11 @@ def generer_tableau_synthese():
     data_dict = {}
 
     categories_assiette_globale = [
+        'Mois/Année',
         '<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE',
         'ASSIETTE GLOBALE -9%',
         'NB BOITES >450€',
+        'REMISE THEORIQUE >450€',
         'PARAPHARMACIE TOTAL HT',
         'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
         'ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE',
@@ -312,17 +314,25 @@ def generer_tableau_synthese():
         'REMISE OBTENUE TOTAL',
     ]
     categories_autres = [
+        'Mois/Année',
         'GENERIQUE 2,1% TOTAL HT',
         'GENERIQUE 5,5% TOTAL HT',
         'GENERIQUE 10% TOTAL HT',
         'GENERIQUE 20% TOTAL HT',
+        "GENERIQUE TOTAL HT",
         "NON GENERIQUE DIRECT LABO TOTAL HT",
         'MARCHE PRODUITS TOTAL HT',
+        'MARCHE PRODUITS REMISE OBTENUE HT',
         'UPP TOTAL HT',
+        'UPP REMISE OBTENUE HT',
         'COALIA TOTAL HT',
+        'COALIA REMISE OBTENUE HT',
         'PHARMAT TOTAL HT',
         'TOTAL GENERAL HT',
     ]
+
+    map_assglob = {colonne: i for i, colonne in enumerate(categories_assiette_globale)}
+    map_autres = {colonne: i for i, colonne in enumerate(categories_autres)}
 
     try:
 
@@ -330,7 +340,10 @@ def generer_tableau_synthese():
             Achat.objects
             .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
             .values('mois', 'annee', 'categorie')
-            .annotate(total_ht_hors_remise=Sum('montant_ht_hors_remise'), remise_theorique_totale=Sum('remise_theorique_totale'))
+            .annotate(
+                total_ht_hors_remise=Sum('montant_ht_hors_remise'), 
+                remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
+            )
         )
 
         #On nettoie et organise le data dict
@@ -338,6 +351,7 @@ def generer_tableau_synthese():
             mois_annee = f"{entry['mois']}/{entry['annee']}"
             categorie = entry['categorie']
             total_ht_hors_remise = entry['total_ht_hors_remise']
+            remise_obtenue = entry['remise_obtenue']
             #remise_theorique_totale = entry['remise_theorique_totale']
 
             # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
@@ -346,6 +360,7 @@ def generer_tableau_synthese():
 
             # Remplissage du dictionnaire avec les valeurs
             data_dict[mois_annee][f"{categorie} TOTAL HT"] = total_ht_hors_remise
+            data_dict[mois_annee][f"{categorie} REMISE OBTENUE HT"] = remise_obtenue
             #data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
 
         #pour chaque catégorie connue, on ajoute la somme dans le tableau
@@ -353,11 +368,11 @@ def generer_tableau_synthese():
         tableau_synthese_autres = remplir_valeurs_categories(data_dict, tableau_synthese_autres, categories_autres)
 
         #REMPLISSAGE DES COLONNES ASSIETTE GLOBALE
-        tableau_synthese_assiette_globale = traitement_colonnes_assiette_globale(tableau_synthese_assiette_globale, categories_assiette_globale)
-        tableau_synthese_autres = traitement_total_general(tableau_synthese_assiette_globale, tableau_synthese_autres)
+        tableau_synthese_assiette_globale = traitement_colonnes_assiette_globale(tableau_synthese_assiette_globale, map_assglob)
+        tableau_synthese_autres = traitement_totaux_autres(tableau_synthese_assiette_globale, tableau_synthese_autres, map_assglob, map_autres)
 
         #REMPLISSAGE REMISES OBTENUES ASSIETTE GLOBALE
-        tableau_synthese_assiette_globale = remplir_remises_obtenues(tableau_synthese_assiette_globale, categories_assiette_globale)
+        tableau_synthese_assiette_globale = remplir_remises_obtenues(tableau_synthese_assiette_globale, map_assglob)
 
         #LIGNES DE TOTAUX PAR ANNEE
         tableau_synthese_assiette_globale = totaux_pourcentages_par_annee(tableau_synthese_assiette_globale, categories_assiette_globale)
@@ -376,12 +391,22 @@ def remplir_valeurs_categories(data_dict, tableau, categories):
 
     for mois_annee, values in data_dict.items():
         tableau.append([mois_annee])
-        for cat in categories:
+        #On parcourt les colonnes grace à la liste des titres de colonne
+        for cat in categories[1:]:
+            #Si la colonne n'est jamais trouvée, on met la valeur à 0
             found = False
-            for categorie, montant in values.items():
-                if categorie in cat:
-                    tableau[i].append(round(montant, 2))
-                    found = True
+            print(cat)
+            if "TOTAL HT" in cat:
+                for categorie, montant in values.items():
+                    if categorie in cat:
+                        tableau[i].append(round(montant, 2))
+                        found = True
+            elif "REMISE OBTENUE HT" in cat:
+                for categorie, montant in values.items():
+                    if categorie in cat:
+                        print(categorie)
+                        tableau[i].append(round(montant, 2))
+                        found = True
             if not found:
                 tableau[i].append(0.00)
         i += 1
@@ -391,7 +416,7 @@ def remplir_valeurs_categories(data_dict, tableau, categories):
     return tableau
 
 
-def traitement_colonnes_assiette_globale(tableau, categories):
+def traitement_colonnes_assiette_globale(tableau, map_assglob):
 
     data_dict_nb_boites = {}
 
@@ -417,65 +442,68 @@ def traitement_colonnes_assiette_globale(tableau, categories):
                 data_dict_nb_boites[mois_annee]["Total_boites"] = total_boites
                 #data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
 
-        for colonne in range(len(categories)):
-            # on remplit les colonnes qui étaient à 0
-            if "-9%" in categories[colonne]:
-                for ligne in range(len(tableau)):
-                    tableau[ligne][colonne + 1] = round(Decimal(tableau[ligne][colonne]) * Decimal(0.91), 2)
-            elif "ASSIETTE GLOBALE REMISE TOTALE" in categories[colonne]:
-                for ligne in range(len(tableau)):
-                    remise_totale = round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.025), 2)
-                    remise_totale += round(Decimal(tableau[ligne][colonne - 3]) * Decimal(15), 2)
-                    remise_totale += round(Decimal(tableau[ligne][colonne - 2]) * Decimal(0.038), 2)
-                    remise_totale += round((Decimal(tableau[ligne][colonne - 1]) + Decimal(tableau[ligne][colonne])) * Decimal(0.038), 2)
-                    remise_totale += round(Decimal(tableau[ligne][colonne - 4]) * Decimal(0.013), 2)
-                    tableau[ligne][colonne + 1] = remise_totale
-            elif "NB BOITES" in categories[colonne]:
-                for ligne in range(len(tableau)):
-                    if tableau[ligne][0] in data_dict_nb_boites:
-                        tableau[ligne][colonne + 1] = data_dict_nb_boites[tableau[ligne][0]]["Total_boites"]
-                    else:
-                        tableau[ligne][colonne + 1] = round(Decimal(0), 0)
+        for ligne in range(len(tableau)):
+            if tableau[ligne][0] in data_dict_nb_boites:
+                tableau[ligne][map_assglob["NB BOITES >450€"]] = data_dict_nb_boites[tableau[ligne][0]]["Total_boites"]
+            else:
+                tableau[ligne][map_assglob["NB BOITES >450€"]] = round(Decimal(0), 0)
+
+        for ligne in range(len(tableau)):
+            tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]] = round(Decimal(tableau[ligne][map_assglob["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE"]]) * Decimal(0.91), 2)
+            tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]] = round(Decimal(tableau[ligne][map_assglob["NB BOITES >450€"]]) * Decimal(15), 2)
+
+            remise_totale = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.025), 2)
+            remise_totale += round(Decimal(tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]]), 2)
+            remise_totale += round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038), 2)
+            remise_totale += round((Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) + Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]])) * Decimal(0.038), 2)
+            remise_totale += round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.013), 2)
+            tableau[ligne][map_assglob["ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE"]] = remise_totale
 
     except Exception as e:
-        logger.error(f'Erreur de traitement des colonnes assiette globale : {e}')
+        logger.error(f'Erreur de traitement des colonnes assiette globale : {e}. Traceback : {traceback.format_exc()}')
 
     return tableau
 
 
-def remplir_remises_obtenues(tableau, categories):
+def remplir_remises_obtenues(tableau, map_assglob):
 
     for ligne in range(len(tableau)):
         avoir_remises = Avoir_remises.objects.filter(mois_concerne=tableau[ligne][0]).first()
         if not avoir_remises is None:
-            for colonne in range(len(categories)):
-                if categories[colonne] == "REMISE OBTENUE ASSIETTE GLOBALE":
-                    tableau[ligne][colonne + 1] = round(avoir_remises.specialites_pharmaceutiques, 2)
-                elif categories[colonne] == "REMISE OBTENUE LPP":
-                    tableau[ligne][colonne + 1] = round(avoir_remises.lpp, 2)
-                elif categories[colonne] == "REMISE OBTENUE PARAPHARMACIE":
-                    tableau[ligne][colonne + 1] = round(avoir_remises.parapharmacie, 2)
-                elif categories[colonne] == "REMISE OBTENUE AVANTAGE COMMERCIAL":
-                    tableau[ligne][colonne + 1] = round(avoir_remises.avantage_commercial, 2)
-                elif categories[colonne] == "REMISE OBTENUE TOTAL":
-                    tableau[ligne][colonne + 1] = tableau[ligne][colonne] + tableau[ligne][colonne - 1]
-                    tableau[ligne][colonne + 1] += tableau[ligne][colonne - 2] + tableau[ligne][colonne - 3]
+            tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] = round(avoir_remises.specialites_pharmaceutiques, 2)
+            tableau[ligne][map_assglob["REMISE OBTENUE LPP"]] = round(avoir_remises.lpp, 2)
+            tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] = round(avoir_remises.parapharmacie, 2)
+            tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]] = round(avoir_remises.avantage_commercial, 2)
+
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] = tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] 
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP"]]
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] 
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]]
 
     return tableau
 
 
-def traitement_total_general(tableau_assiette_globale, tableau_autres):
+def traitement_totaux_autres(tableau_assiette_globale, tableau_autres, map_assglob, map_autres):
     
     #On traite la dernière colonne du tableau autres
 
     for ligne in range(len(tableau_autres)):
-        total_general = Decimal(tableau_assiette_globale[ligne][1]) + Decimal(tableau_assiette_globale[ligne][4])
-        total_general += Decimal(tableau_assiette_globale[ligne][5]) + Decimal(tableau_assiette_globale[ligne][6])
-        total_general += Decimal(tableau_autres[ligne][1]) + Decimal(tableau_autres[ligne][2])
-        total_general += Decimal(tableau_autres[ligne][3]) + Decimal(tableau_autres[ligne][4])
-        total_general += Decimal(tableau_autres[ligne][5]) + Decimal(tableau_autres[ligne][6])
-        total_general += Decimal(tableau_autres[ligne][7]) + Decimal(tableau_autres[ligne][8])
-        total_general += Decimal(tableau_autres[ligne][9])
+        total_generiques = Decimal(tableau_autres[ligne][map_autres["GENERIQUE 2,1% TOTAL HT"]])
+        total_generiques += Decimal(tableau_autres[ligne][map_autres["GENERIQUE 5,5% TOTAL HT"]])
+        total_generiques += Decimal(tableau_autres[ligne][map_autres["GENERIQUE 10% TOTAL HT"]])
+        total_generiques += Decimal(tableau_autres[ligne][map_autres["GENERIQUE 20% TOTAL HT"]])
+        tableau_autres[ligne][map_autres["GENERIQUE TOTAL HT"]] = total_generiques
+
+        total_general = Decimal(tableau_assiette_globale[ligne][map_assglob["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE"]]) 
+        total_general += Decimal(tableau_assiette_globale[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]])
+        total_general += Decimal(tableau_assiette_globale[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) 
+        total_general += Decimal(tableau_assiette_globale[ligne][map_assglob["LPP 20% TOTAL HT"]])
+        total_general += Decimal(tableau_autres[ligne][map_autres["GENERIQUE TOTAL HT"]]) 
+        total_general += Decimal(tableau_autres[ligne][map_autres["NON GENERIQUE DIRECT LABO TOTAL HT"]])
+        total_general += Decimal(tableau_autres[ligne][map_autres["MARCHE PRODUITS TOTAL HT"]]) 
+        total_general += Decimal(tableau_autres[ligne][map_autres["UPP TOTAL HT"]])
+        total_general += Decimal(tableau_autres[ligne][map_autres["COALIA TOTAL HT"]]) 
+        total_general += Decimal(tableau_autres[ligne][map_autres["PHARMAT TOTAL HT"]])
         tableau_autres[ligne][-1] = total_general
     
     return tableau_autres
@@ -557,33 +585,40 @@ def calcul_pourcentages(taille_tableau, totaux, categories):
 
     pourcentages = ['']
     for colonne in range(1, taille_tableau):
-        if "REMISE OBTENUE TOTAL" in categories[colonne - 1]:
+        if "REMISE OBTENUE TOTAL" in categories[colonne]:
             if totaux[colonne - 5] != 0:
                 pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 5] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
-        elif "GROSSISTE REMISE OBTENUE" in categories[colonne - 1]:
+        elif "GROSSISTE REMISE OBTENUE" in categories[colonne]:
             if totaux[colonne - 1] != 0:
                 pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
-        elif "DIRECT REMISE OBTENUE" in categories[colonne - 1]:
+        elif "DIRECT REMISE OBTENUE" in categories[colonne]:
+            if totaux[colonne - 1] != 0:
+                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+            else:
+                pourcentages.append('NA')
+        elif "REMISE OBTENUE HT" in categories[colonne]:
             if totaux[colonne - 1] != 0:
                 pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         else:
             pourcentages.append('')
-
+    
     return pourcentages
 
 def generer_tableau_generiques(fournisseur_generique):
     
     colonnes = [
+        "Mois/Année",
         "GROSSISTE 2,1% MONTANT HT",
         "GROSSISTE 5,5% MONTANT HT",
         "GROSSISTE 10% MONTANT HT",
         "GROSSISTE 20% MONTANT HT",
+        "GROSSISTE TOTAL HT",
         "GROSSISTE REMISE THEORIQUE",
         "GROSSISTE REMISE OBTENUE",
         "DIRECT 2,1% MONTANT HT",
@@ -591,11 +626,14 @@ def generer_tableau_generiques(fournisseur_generique):
         "DIRECT 10% MONTANT HT",
         "DIRECT 20% MONTANT HT",
         "DIRECT NON GENERIQUES MONTANT HT",
+        "DIRECT TOTAL HT",
         "DIRECT REMISE THEORIQUE",
         "DIRECT REMISE OBTENUE",
+        "TOTAL GENERAL HT"
     ]
 
     tableau_generiques = mois_annees_tab_generiques(len(colonnes))
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
 
     # Récupérer les achats qui correspondent aux critères spécifiés
     achats_labo = (
@@ -619,36 +657,37 @@ def generer_tableau_generiques(fournisseur_generique):
             if ligne[0] == mois_annee:
                 if 'CERP' in entry['fournisseur']:
                     if '2,1%' in entry['categorie']:
-                        ligne[1] = Decimal(ligne[1]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '5,5%' in entry['categorie']:
-                        ligne[2] = Decimal(ligne[2]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '10%' in entry['categorie']:
-                        ligne[3] = Decimal(ligne[3]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '20%' in entry['categorie']:
-                        ligne[4] = Decimal(ligne[4]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     
-                    ligne[5] = Decimal(ligne[5]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[6] = Decimal(ligne[6]) + round(entry['remise_obtenue'], 2)
+                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
 
                 elif entry['fournisseur'] != "":
                     if '2,1%' in entry['categorie']:
-                        ligne[7] = Decimal(ligne[7]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '5,5%' in entry['categorie']:
-                        ligne[8] = Decimal(ligne[8]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '10%' in entry['categorie']:
-                        ligne[9] = Decimal(ligne[9]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif '20%' in entry['categorie']:
-                        ligne[10] = Decimal(ligne[10]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     elif 'NON GENERIQUE' in entry['categorie']:
-                        ligne[11] = Decimal(ligne[11]) + round(entry['total_ht_hors_remise'], 2)
+                        ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
                     
-                    ligne[12] = Decimal(ligne[12]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[13] = Decimal(ligne[13]) + round(entry['remise_obtenue'], 2)
+                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
 
     #print(tableau_generiques)
 
     tableau_generiques = quicksort_tableau(tableau_generiques)
 
+    tableau_generiques = colonnes_totaux_generiques(tableau_generiques, map_colonnes)
     tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes)
 
     return tableau_generiques, colonnes, achats_labo
@@ -671,9 +710,29 @@ def mois_annees_tab_generiques(nb_colonnes):
             mois_annees.append(mois_annee)
 
     for ma in mois_annees:
-        nouvelle_ligne = [ma] + [0] * (nb_colonnes)
+        nouvelle_ligne = [ma] + [0] * (nb_colonnes - 1)
         tableau.append(nouvelle_ligne)
 
     return tableau
+
+
+def colonnes_totaux_generiques(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = tableau[ligne][map_colonnes["GROSSISTE 2,1% MONTANT HT"]]
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 5,5% MONTANT HT"]]
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = tableau[ligne][map_colonnes["DIRECT 2,1% MONTANT HT"]]
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 5,5% MONTANT HT"]]
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] += tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
+
+    return tableau
+
 
 

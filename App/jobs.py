@@ -104,6 +104,7 @@ def categoriser_achats_job():
             achat.save()
 
             if achat.categorie != prev_categorie:
+                compteur += 1
                 print(f'categorie modifiée pour l\'achat {achat.produit} {achat.date} : {prev_categorie} => {achat.categorie}')
 
         logger.error(f"Succès de la catégorisation des achats. {compteur} modifications effectuées")
@@ -129,6 +130,7 @@ def calcul_remises_job():
             achat.save()
 
             if achat.remise_theorique_totale != prev_remise:
+                compteur += 1
                 print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
 
         logger.error(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")
