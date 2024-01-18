@@ -404,8 +404,8 @@ def generer_tableau_synthese():
         tableau_synthese_assiette_globale = remplir_remises_obtenues(tableau_synthese_assiette_globale, map_assglob)
 
         #LIGNES DE TOTAUX PAR ANNEE
-        tableau_synthese_assiette_globale = totaux_pourcentages_par_annee(tableau_synthese_assiette_globale, categories_assiette_globale)
-        tableau_synthese_autres = totaux_pourcentages_par_annee(tableau_synthese_autres, categories_autres)
+        tableau_synthese_assiette_globale = totaux_pourcentages_par_annee(tableau_synthese_assiette_globale, categories_assiette_globale, map_assglob)
+        tableau_synthese_autres = totaux_pourcentages_par_annee(tableau_synthese_autres, categories_autres, map_autres)
 
         return tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres
     
@@ -538,7 +538,7 @@ def traitement_totaux_autres(tableau_assiette_globale, tableau_autres, map_assgl
     return tableau_autres
 
 
-def totaux_pourcentages_par_annee(tableau, categories):
+def totaux_pourcentages_par_annee(tableau, categories, map):
     ligne = 0
     ligne_annee_precedente = -1
 
@@ -595,7 +595,7 @@ def totaux_pourcentages_par_annee(tableau, categories):
                 #print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
                 #ligne de pourcentages initialisée avec un vide pour la colonne mois annee
-                pourcentages = calcul_pourcentages(len(tableau[0]), totaux, categories)
+                pourcentages = calcul_pourcentages(len(tableau[0]), totaux, categories, map)
 
                 tableau.insert(ligne, totaux)
                 tableau.insert(ligne + 1, pourcentages)
@@ -616,23 +616,23 @@ def totaux_pourcentages_par_annee(tableau, categories):
     return tableau
 
 
-def calcul_pourcentages(taille_tableau, totaux, categories):
+def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
 
     pourcentages = ['']
     for colonne in range(1, taille_tableau):
         if "REMISE OBTENUE TOTAL" in categories[colonne]:
             if totaux[colonne - 5] != 0:
-                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 5] * 100, 2)} %')
+                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "GROSSISTE REMISE OBTENUE" in categories[colonne]:
             if totaux[colonne - 1] != 0:
-                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["GROSSISTE REMISE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "DIRECT REMISE OBTENUE" in categories[colonne]:
             if totaux[colonne - 1] != 0:
-                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["DIRECT REMISE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "REMISE OBTENUE HT" in categories[colonne]:
@@ -727,7 +727,7 @@ def generer_tableau_generiques(fournisseur_generique):
         tableau_generiques = traitement_ratrappage_remises_teva(tableau_generiques, map_colonnes)
 
     tableau_generiques = colonnes_totaux_generiques(tableau_generiques, map_colonnes)
-    tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes)
+    tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes, map_colonnes)
 
     return tableau_generiques, colonnes, achats_labo
 
