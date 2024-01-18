@@ -49,3 +49,9 @@ form {
 .show-debug {
     display: block;
 }
+
+hr {
+    align-self: center;
+    width: 80%;
+    border: 1px solid black;
+}
