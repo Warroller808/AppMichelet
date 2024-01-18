@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises
+from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -47,7 +47,7 @@ def extraire_date(format, texte):
             match = re.search(regex_date, texte)
         else:
             match = re.search(regex_date, texte.replace(" ", ""))
-        
+
         if match:
             date_formatee = match.group(1).strip().replace(".","/").replace(" ","/")
         
@@ -122,7 +122,7 @@ def pre_traitement_table(format_facture: Format_facture, table_principale):
 
 
 def correspondance_tva_cerp(indice):
-    match indice * 100:
+    match indice:
         case 1:
             return 0.055
         case 2:
@@ -232,7 +232,7 @@ def process_tables(format, tables_page):
                                 if tva == 0.021 or tva == 0.055 or tva == 0.1 or tva == 0.2:
                                     donnees_ligne.append(tva)
                                 elif tva == 0.01 or tva == 0.02 or tva == 0.03 or tva == 0.04 or tva == 0.05:
-                                    donnees_ligne.append(correspondance_tva_cerp(tva))
+                                    donnees_ligne.append(correspondance_tva_cerp(tva * 100))
                                 else: donnees_ligne.append(0)
                             else: donnees_ligne.append(0)
 
@@ -258,7 +258,8 @@ def process_avoir_remises(format, tables_page, numero, date):
     format_facture = Format_facture.objects.get(pk=format)
     table_principale = []
     specialites_pharmaceutiques = Decimal(0)
-    lpp = Decimal(0)
+    lpp_cinq_ou_dix = Decimal(0)
+    lpp_vingt = Decimal(0)
     parapharmacie = Decimal(0)
     avantage_commercial = Decimal(0)
     total = Decimal(0)
@@ -275,19 +276,30 @@ def process_avoir_remises(format, tables_page, numero, date):
                 continue
 
         if table_principale == []:
-            logger.error(f"Table principale introuvable, avoir de remises {numero} émis le {date} : {e}")
+            logger.error(f"Table principale introuvable, avoir de remises {numero} émis le {date}")
+            success = False
         else:
             for i in range(len(table_principale)):
                 if "Spécialités Pharmaceutiques" in table_principale[i][0]:
                     specialites_pharmaceutiques = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
-                elif "LPP" in table_principale[i][0]:
-                    lpp = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "LPP" in table_principale[i][0] or table_principale[i][0] == "":
+                    try:
+                        tva = correspondance_tva_cerp(int(table_principale[i][3]))
+                        if tva == 0.055 or tva == 0.1:
+                            lpp_cinq_ou_dix = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                        elif tva == 0.2:
+                            lpp_vingt = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                        else:
+                            logger.error(f"Problème tva LPP sur avoir {numero} - {date}")
+                            continue
+                    except:
+                        continue
                 elif "Parapharmacie" in table_principale[i][0]:
                     parapharmacie = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                 elif "Avantage Commercial" in table_principale[i][0]:
                     avantage_commercial = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
 
-            total = specialites_pharmaceutiques + lpp + parapharmacie + avantage_commercial
+            total = specialites_pharmaceutiques + lpp_cinq_ou_dix + lpp_vingt + parapharmacie + avantage_commercial
 
             date_mois_concerne = date.replace(day=1) - timedelta(days=1)
             mois_concerne = f"{date_mois_concerne.month}/{date_mois_concerne.year}"
@@ -297,7 +309,8 @@ def process_avoir_remises(format, tables_page, numero, date):
                     date = date,
                     mois_concerne = mois_concerne,
                     specialites_pharmaceutiques = specialites_pharmaceutiques,
-                    lpp = lpp,
+                    lpp_cinq_ou_dix = lpp_cinq_ou_dix,
+                    lpp_vingt = lpp_vingt,
                     parapharmacie = parapharmacie,
                     avantage_commercial = avantage_commercial,
                     total = total,
@@ -309,6 +322,60 @@ def process_avoir_remises(format, tables_page, numero, date):
         logger.error(f"Erreur de traitement de l'avoir de remises {numero} émis le {date} : {e}")
         success = False
     
+    return success
+
+
+def process_ratrappage_teva(format, tables_page, texte_page, numero, date):
+    success = True
+    
+    format_facture = Format_facture.objects.get(pk=format)
+    table_principale = []
+    montant_ratrappage = Decimal(0)
+    regex_mois = r'via le Direct au titre de la période du\s(\d{2}/\d{2}/\d{4})'
+    texte_page = texte_page.replace("\n", " ").strip()
+
+    # la reconnaissance de table ppale est une liste de 3 éléments : [0,0,"DATE par ex
+    recotable = json.loads(format_facture.reconnaissance_table_ppale)
+
+    try:
+        for table in tables_page:
+            try:
+                if table[recotable[0]][recotable[1]] == recotable[2]:
+                    table_principale = table
+            except:
+                continue
+
+        if table_principale == []:
+            logger.error(f"Table principale introuvable, avoir de ratrappage teva {numero} émis le {date}")
+            success = False
+        else:
+            for i in range(len(table_principale)):
+                if re.match(re.compile(format_facture.regex_ligne_table), table_principale[i][0]):
+                    montant_ratrappage += Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
+
+            match = re.search(regex_mois, texte_page)
+            if match:
+                date_mois_concerne = datetime.strptime(match.group(1), '%d/%m/%Y').date()
+                date_mois_concerne = date_mois_concerne.replace(day=1)
+                mois_concerne = f"{date_mois_concerne.month}/{date_mois_concerne.year}"
+
+                nouvel_avoir = Avoir_ratrappage_teva(
+                        numero = numero,
+                        date = date,
+                        mois_concerne = mois_concerne,
+                        montant_ratrappage = montant_ratrappage
+                    )
+                
+                nouvel_avoir.save()
+
+            else:
+                logger.error("Date non trouvée dans l'avoir de ratrappage.")
+                success = False
+
+    except Exception as e:
+        logger.error(f"Erreur de traitement de l'avoir de remises {numero} émis le {date} : {e}")
+        success = False
+
     return success
 
 
@@ -433,8 +500,6 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                     new_categorie = "PROBLEME TVA GENERIQUE GROSSISTE"
             elif marche_produits or any(element in designation.upper() for element in MARCHES_PRODUITS):
                 new_categorie = "MARCHE PRODUITS"
-            elif coalia or pharmupp:
-                new_categorie = "UPP"
             elif lpp:
                 if (tva > 0.0549 and tva < 0.0551) or (tva > 0.099 and tva < 0.101):
                     new_categorie = "LPP 5,5 OU 10%"
@@ -442,6 +507,9 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                     new_categorie = "LPP 20%"
                 else:
                     new_categorie = "PROBLEME TVA LPP"
+            #UPP doit être après LPP
+            elif coalia or pharmupp:
+                new_categorie = "UPP"
             elif remise_pourcent > 0:
                 new_categorie = "REMISE SUR FACTURE"
             elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht < 450:

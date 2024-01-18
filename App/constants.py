@@ -70,3 +70,10 @@ MARCHES_PRODUITS = [
     "CLINUTREN",
     "JELONET"
 ]
+
+
+PRODUITS_LPP = [
+    "BIFLEX",
+    "LEGILET",
+    "VENOFL",
+]

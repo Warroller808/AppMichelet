@@ -51,10 +51,21 @@ class Avoir_remises(models.Model):
     date = models.DateField("DATE", blank=False)
     mois_concerne = models.CharField("MOIS_CONCERNÉ", max_length=128, blank=False, default="")
     specialites_pharmaceutiques = models.DecimalField("SPECIALITÉS_PHARMACEUTIQUES", max_digits=15, decimal_places=4, default=0.00)
-    lpp = models.DecimalField("LPP", max_digits=15, decimal_places=4, default=0.00)
+    lpp_cinq_ou_dix = models.DecimalField("LPP 5,5 OU 10%", max_digits=15, decimal_places=4, default=0.00)
+    lpp_vingt = models.DecimalField("LPP 20%", max_digits=15, decimal_places=4, default=0.00)
     parapharmacie = models.DecimalField("PARAPHARMACIE", max_digits=15, decimal_places=4, default=0.00)
     avantage_commercial = models.DecimalField("AVANTAGE_COMMERCIAL", max_digits=15, decimal_places=4, default=0.00)
     total = models.DecimalField("TOTAL", max_digits=15, decimal_places=4, default=0.00)
+
+    def __str__(self):
+        return f"{self.numero} émis le {self.date} - Mois concerné : {self.mois_concerne}"
+    
+
+class Avoir_ratrappage_teva(models.Model):
+    numero = models.CharField("NUMERO", max_length=128, primary_key=True)
+    date = models.DateField("DATE", blank=False)
+    mois_concerne = models.CharField("MOIS_CONCERNÉ", max_length=128, blank=False, default="")
+    montant_ratrappage = models.DecimalField("MONTANT RATTRAPAGE", max_digits=15, decimal_places=4, default=0.00)
 
     def __str__(self):
         return f"{self.numero} émis le {self.date} - Mois concerné : {self.mois_concerne}"
@@ -193,6 +204,7 @@ class Command(BaseCommand):
                     achat.save()
 
                     if achat.remise_pourcent != prev_pourcentage:
+                        compteur += 1
                         print(f'pourcentage de remise modifié pour l\'achat {achat.produit} {achat.date} {achat.fournisseur} : {prev_pourcentage} => {achat.remise_pourcent}')
 
             print(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")

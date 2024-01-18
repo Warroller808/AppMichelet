@@ -8,9 +8,9 @@ from django.conf import settings
 from django.db.models import Sum, F, Q, ExpressionWrapper, fields, Subquery
 from django.db.models.functions import ExtractMonth, ExtractYear, Cast, Concat
 from decimal import Decimal
-from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO
+from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
 from .utils import *
-from .models import Achat, Produit_catalogue, Avoir_remises
+from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva
 
 
 BASE_DIR = settings.BASE_DIR
@@ -76,7 +76,7 @@ def process_factures(facture_paths):
         #logger.error(events)
 
     except Exception as e:
-        logger.error(f'Erreur dans l\'exécution de process factures. Erreur : {e}')
+        logger.error(f'Erreur dans l\'exécution de process factures. Erreur : {e}. Traceback : {traceback.format_exc()}')
         success = False
 
     return success, table_achats_finale, events, texte_page, tables_page, tables_page_2
@@ -106,17 +106,21 @@ def extract_data(facture_path, facture_name):
             try:
                 format, fournisseur = extraire_format_fournisseur(texte_page)
                 format_inst = Format_facture.objects.get(pk=format)
+                
                 if format_inst.regex_date == "NA":
                     events.append(f'Facture ignorée, page {num_page + 1}')
                     continue
                 tables_page = page.extract_tables(table_settings=format_inst.table_settings)
 
-                date = datetime.strptime(extraire_date(format, texte_page), '%d/%m/%Y').date()
+                date = extraire_date(format, texte_page)
                 numero_facture = extraire_numero_facture(format, texte_page)
 
                 if not date or not numero_facture:
-                    logger.error(f'Erreur de récupération de la date ou du numéro de facture donc page ignorée. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format}')
+                    print(f'error date ou num sur page {num_page}')
+                    logger.error(f'Erreur de récupération de la date ou du numéro de facture donc page ignorée. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
                     continue
+
+                date = datetime.strptime(date, '%d/%m/%Y').date()
 
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
@@ -127,7 +131,7 @@ def extract_data(facture_path, facture_name):
                 tables_page_toutes.append(tables_page)
                 continue
 
-            if format != "AVOIR REMISES CERP":
+            if format != "AVOIR REMISES CERP" and format != "RATRAPPAGE TEVA":
                 # On vérifie si la facture a déjà été traitée, si oui on prévient
                 if not Achat.objects.filter(numero_facture=numero_facture):
                     processed_table, events_achats = process_tables(format, tables_page)
@@ -146,15 +150,26 @@ def extract_data(facture_path, facture_name):
                 else:
                     events.append(f'La facture {facture_name} - {numero_facture}, page {num_page +1} a déjà été traitée par le passé, elle n\'a donc pas été traitée à nouveau')
             else:
-                if not Avoir_remises.objects.filter(numero=numero_facture):
-                    success = process_avoir_remises(format, tables_page, numero_facture, date)
+                if format == "AVOIR REMISES CERP":
+                    if not Avoir_remises.objects.filter(numero=numero_facture):
+                        success = process_avoir_remises(format, tables_page, numero_facture, date)
 
-                    if success:
-                        events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a été traité et sauvegardé')
+                        if success:
+                            events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a été traité et sauvegardé')
+                        else:
+                            events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
                     else:
-                        events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
+                        events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
                 else:
-                    events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
+                    if not Avoir_ratrappage_teva.objects.filter(numero=numero_facture):
+                        success = process_ratrappage_teva(format, tables_page, texte_page, numero_facture, date)
+
+                        if success:
+                            events.append(f'L\'avoir de ratrappage teva {facture_name} - {numero_facture}, page {num_page +1} a été traité et sauvegardé')
+                        else:
+                            events.append(f'L\'avoir de ratrappage teva {facture_name} - {numero_facture}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
+                    else:
+                        events.append(f'L\'avoir de ratrappage teva {facture_name} - {numero_facture}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
             
     return table_donnees, table_produits, events, texte_page_tout, tables_page_toutes, tables_page_2
 
@@ -189,22 +204,25 @@ def save_data(table_donnees):
         generique = False
         try:
             produit = Produit_catalogue.objects.get(code=dictligne["code"], annee=dictligne["date"].year)
-            generique = (produit.type == "GENERIQUE")
-            marche_produits = (produit.type == "MARCHE PRODUITS")
-            pharmupp = produit.pharmupp
-            lpp = produit.lpp
-            # SI LA TVA MANQUE ON L'AJOUTE AVANT LA CATEGORISATION
-            if dictligne["tva"] != 0:
-                if produit.tva == 0:
-                    produit.tva = dictligne["tva"]
+            try:
+                generique = (produit.type == "GENERIQUE")
+                marche_produits = (produit.type == "MARCHE PRODUITS")
+                pharmupp = produit.pharmupp
+                lpp = produit.lpp
+                # SI LA TVA MANQUE ON L'AJOUTE AVANT LA CATEGORISATION
+                if dictligne["tva"] != 0:
+                    if produit.tva > -0.0001 and produit.tva < 0.0001:
+                        produit.tva = dictligne["tva"]
+                        produit.save()
+                # SI FACTURE COALIA, LE PRODUIT EST MARQUE COMME VENDU CHEZ COALIA POUR LES FUTURS UPP
+                if dictligne["fournisseur"] == "CERP COALIA" and not produit.coalia:
+                    produit.coalia = True
                     produit.save()
-            # SI FACTURE COALIA, LE PRODUIT EST MARQUE COMME VENDU CHEZ COALIA POUR LES FUTURS UPP
-            if dictligne("fournisseur") == "CERP COALIA" and not produit.coalia:
-                produit.coalia = True
-                produit.save()
 
-            coalia = produit.coalia
-                    
+                coalia = produit.coalia
+            except Exception as e:
+                logger.error(f"Erreur lors de l'importation des données du produit existant : {e}. Traceback : {traceback.format_exc()}")
+
         except:
             coalia = (dictligne["fournisseur"] == "CERP COALIA")
             generique = (dictligne["fournisseur"] == "TEVA" or dictligne["fournisseur"] == "EG" or dictligne["fournisseur"] == "BIOGARAN"  or dictligne["fournisseur"] == "ARROW")
@@ -222,6 +240,7 @@ def save_data(table_donnees):
             new_coalia = False
             new_fournisseur_generique = ""
             new_type = ""
+            new_lpp = any(element in dictligne["designation"].upper() for element in PRODUITS_LPP)
 
             if new_categorie == "COALIA":
                 new_coalia = True
@@ -236,6 +255,7 @@ def save_data(table_donnees):
                 type = new_type,
                 fournisseur_generique = new_fournisseur_generique,
                 coalia = new_coalia,
+                lpp = new_lpp,
                 remise_grossiste = "",
                 remise_direct = "",
                 tva = dictligne["tva"],
@@ -252,12 +272,20 @@ def save_data(table_donnees):
                 if new_categorie.split()[0].upper() == "GENERIQUE":
                     produit.type = "GENERIQUE"
                     produit.save()
+                    logger.error(f"Produit existant {dictligne['code']} {dictligne['date'].year} typé en générique. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
                 elif new_categorie == "MARCHE PRODUITS":
                     produit.type = new_categorie
                     produit.save()
+                    logger.error(f"Produit existant {dictligne['code']} {dictligne['date'].year} typé en marché produits. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
             if new_categorie.split()[0].upper() == "GENERIQUE" and produit.fournisseur_generique == "":
-                produit.fournisseur_generique = determiner_fournisseur_generique(dictligne["designation"], dictligne["fournisseur"])
+                new_fournisseur_generique = determiner_fournisseur_generique(dictligne["designation"], dictligne["fournisseur"])
+                produit.fournisseur_generique = new_fournisseur_generique
                 produit.save()
+                logger.error(f"Fournisseur générique {dictligne['code']} {dictligne['date'].year} complété : {new_fournisseur_generique}. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
+            if produit.lpp == False and any(element in dictligne["designation"].upper() for element in PRODUITS_LPP):
+                produit.lpp = True
+                produit.save()
+                logger.error(f"Produit existant {dictligne['code']} {dictligne['date'].year} passé en lpp. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
 
         #ON IMPORTE LE PRODUIT A NOUVEAU
         produit = Produit_catalogue.objects.get(code=dictligne["code"], annee=dictligne["date"].year)
@@ -308,7 +336,8 @@ def generer_tableau_synthese():
         'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
         'ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE',
         'REMISE OBTENUE ASSIETTE GLOBALE',
-        'REMISE OBTENUE LPP',
+        'REMISE OBTENUE LPP 5,5 OU 10%',
+        'REMISE OBTENUE LPP 20%',
         'REMISE OBTENUE PARAPHARMACIE',
         'REMISE OBTENUE AVANTAGE COMMERCIAL',
         'REMISE OBTENUE TOTAL',
@@ -395,7 +424,6 @@ def remplir_valeurs_categories(data_dict, tableau, categories):
         for cat in categories[1:]:
             #Si la colonne n'est jamais trouvée, on met la valeur à 0
             found = False
-            print(cat)
             if "TOTAL HT" in cat:
                 for categorie, montant in values.items():
                     if categorie in cat:
@@ -404,7 +432,6 @@ def remplir_valeurs_categories(data_dict, tableau, categories):
             elif "REMISE OBTENUE HT" in cat:
                 for categorie, montant in values.items():
                     if categorie in cat:
-                        print(categorie)
                         tableau[i].append(round(montant, 2))
                         found = True
             if not found:
@@ -471,12 +498,14 @@ def remplir_remises_obtenues(tableau, map_assglob):
         avoir_remises = Avoir_remises.objects.filter(mois_concerne=tableau[ligne][0]).first()
         if not avoir_remises is None:
             tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] = round(avoir_remises.specialites_pharmaceutiques, 2)
-            tableau[ligne][map_assglob["REMISE OBTENUE LPP"]] = round(avoir_remises.lpp, 2)
+            tableau[ligne][map_assglob["REMISE OBTENUE LPP 5,5 OU 10%"]] = round(avoir_remises.lpp_cinq_ou_dix, 2)
+            tableau[ligne][map_assglob["REMISE OBTENUE LPP 20%"]] = round(avoir_remises.lpp_vingt, 2)
             tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] = round(avoir_remises.parapharmacie, 2)
             tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]] = round(avoir_remises.avantage_commercial, 2)
 
             tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] = tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] 
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP"]]
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP 5,5 OU 10%"]]
+            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP 20%"]]
             tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] 
             tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]]
 
@@ -528,7 +557,7 @@ def totaux_pourcentages_par_annee(tableau, categories):
             elif ligne == len(tableau) - 1:
                 #on regarde si il y a changement à l'avant derniere ligne
                 #print(f'derniere ligne : ligne {ligne} / {len(tableau) - 1}. Nb elements : {len(tableau)}')
-                if tableau[ligne - 1][0] != "":
+                if tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année":
                     if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                         traitement = True
                         double_traitement = True
@@ -540,7 +569,7 @@ def totaux_pourcentages_par_annee(tableau, categories):
                     traitement = True
                     ligne += 1
                 
-            elif tableau[ligne - 1][0] != "":
+            elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année":
                 if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                     traitement = True
                     #print("comparaison de dates")
@@ -554,10 +583,14 @@ def totaux_pourcentages_par_annee(tableau, categories):
                 # Ligne de totaux initialisée avec un vide pour la colonne mois annee
                 totaux = [f'TOTAL {convert_date(tableau[ligne - 1][0]).year}']
                 for colonne in range(1, len(tableau[0])):
-                    total = Decimal(0)
-                    for ligne_annee in range(ligne_annee_precedente + 1, ligne):
-                        total += Decimal(tableau[ligne_annee][colonne])
-                    totaux.append(round(total, 2))
+                    try:
+                        total = Decimal(0)
+                        for ligne_annee in range(ligne_annee_precedente + 1, ligne):
+                            total += Decimal(tableau[ligne_annee][colonne])
+                        totaux.append(round(total, 2))
+                    except:
+                        totaux.append("")
+                        continue
 
                 #print(f'totaux calculés entre {ligne_annee_precedente + 1} et {ligne - 1}')
 
@@ -566,12 +599,14 @@ def totaux_pourcentages_par_annee(tableau, categories):
 
                 tableau.insert(ligne, totaux)
                 tableau.insert(ligne + 1, pourcentages)
+                if ligne + 1 != len(tableau) - 1:
+                    tableau.insert(ligne + 2, categories)
                 #print(f'totaux inseres en {ligne} et pourcentages en {ligne + 1}')
                 if not double_traitement:
-                    ligne_annee_precedente = ligne + 1
-                    ligne += 2
+                    ligne_annee_precedente = ligne + 2
+                    ligne += 3
                 else:
-                    ligne_annee_precedente = ligne + 1
+                    ligne_annee_precedente = ligne + 2
                     ligne += 1
             else:
                 ligne += 1
@@ -629,11 +664,12 @@ def generer_tableau_generiques(fournisseur_generique):
         "DIRECT TOTAL HT",
         "DIRECT REMISE THEORIQUE",
         "DIRECT REMISE OBTENUE",
+        "RATRAPPAGE DE REMISES DIRECT TEVA",
         "TOTAL GENERAL HT"
     ]
 
-    tableau_generiques = mois_annees_tab_generiques(len(colonnes))
     map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_generiques = mois_annees_tab_generiques(map_colonnes, fournisseur_generique)
 
     # Récupérer les achats qui correspondent aux critères spécifiés
     achats_labo = (
@@ -687,13 +723,16 @@ def generer_tableau_generiques(fournisseur_generique):
 
     tableau_generiques = quicksort_tableau(tableau_generiques)
 
+    if fournisseur_generique == "TEVA":
+        tableau_generiques = traitement_ratrappage_remises_teva(tableau_generiques, map_colonnes)
+
     tableau_generiques = colonnes_totaux_generiques(tableau_generiques, map_colonnes)
     tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes)
 
     return tableau_generiques, colonnes, achats_labo
 
 
-def mois_annees_tab_generiques(nb_colonnes):
+def mois_annees_tab_generiques(map_colonnes, fournisseur_generique):
     tableau=[]
     mois_annees = []
 
@@ -710,8 +749,14 @@ def mois_annees_tab_generiques(nb_colonnes):
             mois_annees.append(mois_annee)
 
     for ma in mois_annees:
-        nouvelle_ligne = [ma] + [0] * (nb_colonnes - 1)
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
         tableau.append(nouvelle_ligne)
+
+    if not "TEVA" in fournisseur_generique:
+        for colonne in map_colonnes:
+            if "RATRAPPAGE" in colonne:
+                for ligne in range(len(tableau)):
+                    tableau[ligne][map_colonnes[colonne]] = ""
 
     return tableau
 
@@ -731,6 +776,38 @@ def colonnes_totaux_generiques(tableau, map_colonnes):
 
         tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
         tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] += tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
+
+    return tableau
+
+
+def traitement_ratrappage_remises_teva(tableau, map_colonnes):
+
+    data_ratrappage = (
+            Achat.objects
+            .filter(
+                categorie__startswith="GENERIQUE",
+                produit__fournisseur_generique = "TEVA",
+                fournisseur = "TEVA"
+            )
+            .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+            .values('mois', 'annee', 'remise_pourcent', 'montant_ht_hors_remise')
+        )
+
+    #On parcourt les achats importés
+    for entry in data_ratrappage:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        #Si l'achat est éligible au ratrappage, on le traite
+        if entry['remise_pourcent'] > Decimal(0.001) and entry['remise_pourcent'] < Decimal(0.399):
+            #On cherche la bonne ligne avec le mois et l'année
+            for ligne in tableau:
+                #Une fois la ligne trouvée, on ajoute la différence de remise à la cellule
+                if ligne[0] == mois_annee:
+                    ligne[map_colonnes["RATRAPPAGE DE REMISES DIRECT TEVA"]] = (
+                            round(
+                                ligne[map_colonnes["RATRAPPAGE DE REMISES DIRECT TEVA"]]
+                                + ((Decimal(0.37) - Decimal(entry['remise_pourcent'])) * Decimal(entry['montant_ht_hors_remise']))
+                            , 2)
+                        )
 
     return tableau
 

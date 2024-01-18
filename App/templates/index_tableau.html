@@ -43,13 +43,14 @@
                 <thead>
                 <tr>
                     {% for categorie in categories_assiette_globale %}
-                        <th>{{ categorie }}</th>
+                        <th class="table-header">{{ categorie }}</th>
                     {% endfor %}
                 </tr>
                 </thead>
                 <tbody>
                 {% for ligne in tableau_synthese_assiette_globale %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} style="font-weight: bold; background-color: #f2f2f2;" {% endif %}>
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                        {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
                                 {{ cellule }}
@@ -62,18 +63,23 @@
         {% endif %}
 
         {% if tableau_synthese_autres %}
+        
+        <br>
+
+        <h3>Autres catégories</h3>
 
             <table border="1">
                 <thead>
                 <tr>
                     {% for categorie in categories_autres %}
-                        <th>{{ categorie }}</th>
+                        <th class="table-header">{{ categorie }}</th>
                     {% endfor %}
                 </tr>
                 </thead>
                 <tbody>
                 {% for ligne in tableau_synthese_autres %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} style="font-weight: bold; background-color: #f2f2f2;" {% endif %}>
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                        {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
                                 {{ cellule }}
