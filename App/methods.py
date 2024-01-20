@@ -514,12 +514,12 @@ def remplir_remises_obtenues(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE PARAPHARMACIE OBTENUE"]] 
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]]
 
-            tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])
-                                                                       - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
+            tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])
                                                                     )
             
-            tableau[ligne][map_assglob["DIFFERENCE REMISE GROSSISTE"]] = (Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]])
-                                                                       - Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]])
+            tableau[ligne][map_assglob["DIFFERENCE REMISE GROSSISTE"]] = (Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]])
                                                                     )
 
     return tableau
@@ -786,11 +786,11 @@ def colonnes_totaux_generiques(tableau, map_colonnes):
         tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
 
         
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]] 
-                                                                       - tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]]
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
+                                                                       - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
                                                                     )
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
-                                                                       - tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+                                                                       - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
                                                                     )
 
         tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = tableau[ligne][map_colonnes["DIRECT 2,1% MONTANT HT"]]
