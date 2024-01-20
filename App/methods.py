@@ -330,18 +330,22 @@ def generer_tableau_synthese():
         'Mois/Année',
         '<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE',
         'ASSIETTE GLOBALE -9%',
+        'REMISE ASSIETTE GLOBALE THEORIQUE',
+        'REMISE ASSIETTE GLOBALE OBTENUE',
+        'DIFFERENCE REMISE ASSIETTE GLOBALE',
         'NB BOITES >450€',
         'REMISE THEORIQUE >450€',
         'PARAPHARMACIE TOTAL HT',
         'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
-        'ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE',
-        'REMISE OBTENUE ASSIETTE GLOBALE',
-        'REMISE OBTENUE LPP 5,5 OU 10%',
-        'REMISE OBTENUE LPP 20%',
-        'REMISE OBTENUE PARAPHARMACIE',
-        'REMISE OBTENUE AVANTAGE COMMERCIAL',
-        'REMISE OBTENUE TOTAL',
+        'REMISE GROSSISTE TOTALE THEORIQUE',
+        'REMISE LPP 5,5 OU 10% OBTENUE',
+        'REMISE LPP 20% OBTENUE',
+        'REMISE PARAPHARMACIE OBTENUE',
+        'REMISE AVANTAGE COMMERCIAL OBTENUE',
+        'REMISE GROSSISTE TOTALE OBTENUE',
+        'DIFFERENCE REMISE GROSSISTE',
     ]
+
     categories_autres = [
         'Mois/Année',
         'GENERIQUE 2,1% TOTAL HT',
@@ -477,14 +481,15 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob):
 
         for ligne in range(len(tableau)):
             tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]] = round(Decimal(tableau[ligne][map_assglob["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE"]]) * Decimal(0.91), 2)
+            tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.025), 2)
             tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]] = round(Decimal(tableau[ligne][map_assglob["NB BOITES >450€"]]) * Decimal(15), 2)
 
-            remise_totale = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.025), 2)
+            remise_totale = round(Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]]), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]]), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038), 2)
             remise_totale += round((Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) + Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]])) * Decimal(0.038), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.013), 2)
-            tableau[ligne][map_assglob["ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE"]] = remise_totale
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]] = remise_totale
 
     except Exception as e:
         logger.error(f'Erreur de traitement des colonnes assiette globale : {e}. Traceback : {traceback.format_exc()}')
@@ -497,17 +502,25 @@ def remplir_remises_obtenues(tableau, map_assglob):
     for ligne in range(len(tableau)):
         avoir_remises = Avoir_remises.objects.filter(mois_concerne=tableau[ligne][0]).first()
         if not avoir_remises is None:
-            tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] = round(avoir_remises.specialites_pharmaceutiques, 2)
-            tableau[ligne][map_assglob["REMISE OBTENUE LPP 5,5 OU 10%"]] = round(avoir_remises.lpp_cinq_ou_dix, 2)
-            tableau[ligne][map_assglob["REMISE OBTENUE LPP 20%"]] = round(avoir_remises.lpp_vingt, 2)
-            tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] = round(avoir_remises.parapharmacie, 2)
-            tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]] = round(avoir_remises.avantage_commercial, 2)
+            tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]] = round(avoir_remises.specialites_pharmaceutiques, 2)
+            tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% OBTENUE"]] = round(avoir_remises.lpp_cinq_ou_dix, 2)
+            tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]] = round(avoir_remises.lpp_vingt, 2)
+            tableau[ligne][map_assglob["REMISE PARAPHARMACIE OBTENUE"]] = round(avoir_remises.parapharmacie, 2)
+            tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]] = round(avoir_remises.avantage_commercial, 2)
 
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] = tableau[ligne][map_assglob["REMISE OBTENUE ASSIETTE GLOBALE"]] 
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP 5,5 OU 10%"]]
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE LPP 20%"]]
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE PARAPHARMACIE"]] 
-            tableau[ligne][map_assglob["REMISE OBTENUE TOTAL"]] += tableau[ligne][map_assglob["REMISE OBTENUE AVANTAGE COMMERCIAL"]]
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] = tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]] 
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% OBTENUE"]]
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]]
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE PARAPHARMACIE OBTENUE"]] 
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]]
+
+            tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
+                                                                    )
+            
+            tableau[ligne][map_assglob["DIFFERENCE REMISE GROSSISTE"]] = (Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]])
+                                                                    )
 
     return tableau
 
@@ -620,9 +633,9 @@ def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
 
     pourcentages = ['']
     for colonne in range(1, taille_tableau):
-        if "REMISE OBTENUE TOTAL" in categories[colonne]:
+        if "REMISE GROSSISTE TOTALE OBTENUE" in categories[colonne]:
             if totaux[colonne - 5] != 0:
-                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["ASSIETTE GLOBALE REMISE TOTALE GROSSISTE THEORIQUE"]] * 100, 2)} %')
+                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["REMISE GROSSISTE TOTALE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "GROSSISTE REMISE OBTENUE" in categories[colonne]:
@@ -645,6 +658,7 @@ def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
     
     return pourcentages
 
+
 def generer_tableau_generiques(fournisseur_generique):
     
     colonnes = [
@@ -656,6 +670,7 @@ def generer_tableau_generiques(fournisseur_generique):
         "GROSSISTE TOTAL HT",
         "GROSSISTE REMISE THEORIQUE",
         "GROSSISTE REMISE OBTENUE",
+        "DIFFERENCE REMISE GROSSISTE",
         "DIRECT 2,1% MONTANT HT",
         "DIRECT 5,5% MONTANT HT",
         "DIRECT 10% MONTANT HT",
@@ -664,8 +679,9 @@ def generer_tableau_generiques(fournisseur_generique):
         "DIRECT TOTAL HT",
         "DIRECT REMISE THEORIQUE",
         "DIRECT REMISE OBTENUE",
+        "DIFFERENCE REMISE DIRECT",
         "RATRAPPAGE DE REMISES DIRECT TEVA",
-        "TOTAL GENERAL HT"
+        "TOTAL GENERAL HT",
     ]
 
     map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
@@ -768,6 +784,14 @@ def colonnes_totaux_generiques(tableau, map_colonnes):
         tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 5,5% MONTANT HT"]]
         tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
         tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+
+        
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]] 
+                                                                       - tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]]
+                                                                    )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
+                                                                       - tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+                                                                    )
 
         tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = tableau[ligne][map_colonnes["DIRECT 2,1% MONTANT HT"]]
         tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 5,5% MONTANT HT"]]
