@@ -55,6 +55,7 @@ class Avoir_remises(models.Model):
     lpp_vingt = models.DecimalField("LPP 20%", max_digits=15, decimal_places=4, default=0.00)
     parapharmacie = models.DecimalField("PARAPHARMACIE", max_digits=15, decimal_places=4, default=0.00)
     avantage_commercial = models.DecimalField("AVANTAGE_COMMERCIAL", max_digits=15, decimal_places=4, default=0.00)
+    avoirs_exceptionnels = models.DecimalField("AVOIRS_EXCEPTIONNELS", max_digits=15, decimal_places=4, default=0.00)
     total = models.DecimalField("TOTAL", max_digits=15, decimal_places=4, default=0.00)
 
     def __str__(self):

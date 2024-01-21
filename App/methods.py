@@ -95,7 +95,7 @@ def extract_data(facture_path, facture_name):
             page = pdf.pages[num_page]
 
             if num_page % 40 == 0:
-                logger.error(f'({round(num_page / len(pdf.pages) * 100, 0)}%) {facture_name} - {num_page} en cours de traitement...')
+                logger.error(f'({round((num_page + 1) / len(pdf.pages) * 100, 0)}%) {facture_name} - {num_page + 1} en cours de traitement...')
 
             texte_page = page.extract_text()
             tables_page = []
@@ -113,10 +113,12 @@ def extract_data(facture_path, facture_name):
                 tables_page = page.extract_tables(table_settings=format_inst.table_settings)
 
                 date = extraire_date(format, texte_page)
-                numero_facture = extraire_numero_facture(format, texte_page)
+                numero_facture = None
+                if format_inst.regex_numero_facture != "NA":
+                    numero_facture = extraire_numero_facture(format, texte_page)
 
-                if not date or not numero_facture:
-                    print(f'error date ou num sur page {num_page}')
+                if not date or (format_inst.regex_numero_facture != "NA" and not numero_facture):
+                    print(f'error date ou num sur page {num_page + 1}')
                     logger.error(f'Erreur de récupération de la date ou du numéro de facture donc page ignorée. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
                     continue
 
@@ -131,7 +133,7 @@ def extract_data(facture_path, facture_name):
                 tables_page_toutes.append(tables_page)
                 continue
 
-            if format != "AVOIR REMISES CERP" and format != "RATRAPPAGE TEVA":
+            if "AVOIR REMISES CERP" not in format and format != "RATRAPPAGE TEVA":
                 # On vérifie si la facture a déjà été traitée, si oui on prévient
                 if not Achat.objects.filter(numero_facture=numero_facture):
                     processed_table, events_achats = process_tables(format, tables_page)
@@ -160,6 +162,23 @@ def extract_data(facture_path, facture_name):
                             events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
                     else:
                         events.append(f'L\'avoir de remises {facture_name} - {numero_facture}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
+                elif format == "AVOIR REMISES CERP DEUXIEME PAGE":
+                    date_mois_concerne = date.replace(day=1) - timedelta(days=1)
+                    mois_concerne = f"{date_mois_concerne.month}/{date_mois_concerne.year}"
+
+                    try:
+                        avoir_concerne = Avoir_remises.objects.get(mois_concerne=mois_concerne)
+                        if not avoir_concerne or (avoir_concerne and (avoir_concerne.avoirs_exceptionnels > -0.0001 and avoir_concerne.avoirs_exceptionnels < 0.0001)):
+                            success = process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date)
+
+                            if success:
+                                events.append(f'L\'avoir de remises page 2 {facture_name} - {mois_concerne}, page {num_page +1} a été traité et sauvegardé')
+                            else:
+                                events.append(f'L\'avoir de remises page 2 {facture_name} - {mois_concerne}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
+                        else:
+                            events.append(f'L\'avoir de remises page 2 {facture_name} - {mois_concerne}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
+                    except Exception as e:
+                        events.append(f'L\'avoir de remises concerné par la page 2 {facture_name} - {mois_concerne}, page {num_page +1} n\'a pas pu être importé : {e}')
                 else:
                     if not Avoir_ratrappage_teva.objects.filter(numero=numero_facture):
                         success = process_ratrappage_teva(format, tables_page, texte_page, numero_facture, date)
@@ -342,6 +361,7 @@ def generer_tableau_synthese():
         'REMISE LPP 20% OBTENUE',
         'REMISE PARAPHARMACIE OBTENUE',
         'REMISE AVANTAGE COMMERCIAL OBTENUE',
+        'REMISE >450€ OBTENUE',
         'REMISE GROSSISTE TOTALE OBTENUE',
         'DIFFERENCE REMISE GROSSISTE',
     ]
@@ -484,10 +504,25 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.025), 2)
             tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]] = round(Decimal(tableau[ligne][map_assglob["NB BOITES >450€"]]) * Decimal(15), 2)
 
+            if Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) > Decimal(0):
+                remise_parapharmacie = Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038)
+            else:
+                remise_parapharmacie = Decimal(0)
+
+            if Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) > Decimal(0):
+                remise_lpp_cinq_ou_dix = Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) * Decimal(0.038)
+            else:
+                remise_lpp_cinq_ou_dix = Decimal(0)
+
+            if Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) > Decimal(0):
+                remise_lpp_vingt = Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * Decimal(0.038)
+            else:
+                remise_lpp_vingt = Decimal(0)
+            
             remise_totale = round(Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]]), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]]), 2)
-            remise_totale += round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038), 2)
-            remise_totale += round((Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) + Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]])) * Decimal(0.038), 2)
+            remise_totale += round(Decimal(remise_parapharmacie), 2)
+            remise_totale += round(Decimal(remise_lpp_cinq_ou_dix) + Decimal(remise_lpp_vingt), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.013), 2)
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]] = remise_totale
 
@@ -507,12 +542,14 @@ def remplir_remises_obtenues(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]] = round(avoir_remises.lpp_vingt, 2)
             tableau[ligne][map_assglob["REMISE PARAPHARMACIE OBTENUE"]] = round(avoir_remises.parapharmacie, 2)
             tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]] = round(avoir_remises.avantage_commercial, 2)
+            tableau[ligne][map_assglob["REMISE >450€ OBTENUE"]] = round(avoir_remises.avoirs_exceptionnels, 2)
 
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] = tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]] 
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% OBTENUE"]]
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]]
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE PARAPHARMACIE OBTENUE"]] 
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]]
+            tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE >450€ OBTENUE"]]
 
             tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
                                                                        - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])

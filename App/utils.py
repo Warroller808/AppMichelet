@@ -43,7 +43,7 @@ def extraire_date(format, texte):
         regex_date = re.compile(Format_facture.objects.get(pk=format).regex_date)
 
         # Recherche la date dans le texte
-        if format != "AVOIR REMISES CERP":
+        if "AVOIR REMISES CERP" not in format:
             match = re.search(regex_date, texte)
         else:
             match = re.search(regex_date, texte.replace(" ", ""))
@@ -66,7 +66,7 @@ def extraire_numero_facture(format, texte):
         regex_numero_facture = re.compile(Format_facture.objects.get(pk=format).regex_numero_facture)  
 
         # Recherche le numéro de facture dans le texte
-        if format != "AVOIR REMISES CERP":
+        if "AVOIR REMISES CERP" not in format:
             match = re.search(regex_numero_facture, texte)
         else:
             match = re.search(regex_numero_facture, texte.replace(" ", ""))
@@ -320,6 +320,48 @@ def process_avoir_remises(format, tables_page, numero, date):
 
     except Exception as e:
         logger.error(f"Erreur de traitement de l'avoir de remises {numero} émis le {date} : {e}")
+        success = False
+    
+    return success
+
+
+def process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date):
+    success = True
+    
+    format_facture = Format_facture.objects.get(pk=format)
+    table_principale = []
+    avoirs_exceptionnels = Decimal(0)
+
+    # la reconnaissance de table ppale est une liste de 3 éléments : [0,0,"DATE par ex
+    recotable = json.loads(format_facture.reconnaissance_table_ppale)
+
+    try:
+        for table in tables_page:
+            try:
+                if table[recotable[0]][recotable[1]] == recotable[2]:
+                    table_principale = table
+            except Exception as e:
+                continue
+
+        if table_principale == []:
+            logger.error(f"Table principale introuvable, avoir de remises du {mois_concerne} émis le {date}")
+            success = False
+        else:
+            for i in range(len(table_principale)):
+                if "Avoirs Exceptionnels" in table_principale[i][0]:
+                    avoirs_exceptionnels = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+
+            try:
+                avoir = Avoir_remises.objects.get(mois_concerne=mois_concerne)
+                avoir.avoirs_exceptionnels = avoirs_exceptionnels
+                avoir.save()
+
+            except Exception as e:
+                logger.error(f"Erreur lors de l'importation de l'avoir concerné par la page 2 du mois {mois_concerne} émis le {date} : {e}")
+                success = False
+
+    except Exception as e:
+        logger.error(f"Erreur de traitement de l'avoir de remises page 2 {mois_concerne} émis le {date} : {e}")
         success = False
     
     return success
