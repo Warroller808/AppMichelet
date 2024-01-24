@@ -180,6 +180,35 @@ def tableau_synthese(request):
 
 
 @login_required
+def tableau_simplifie(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    data_dict = data_dict_tab_simplifie()
+
+    mois_annees = list(data_dict.keys())
+    mois_annee_selectionne = request.GET.get('mois_annee', '')
+    print(mois_annee_selectionne)
+
+    if not mois_annee_selectionne and mois_annees:
+        mois_annee_selectionne = "10/2023"
+
+    tableau_simplifie, colonnes = generer_tableau_simplifie(mois_annee_selectionne, data_dict)
+
+    context = {
+        'mois_annees': mois_annees,
+        'mois_annee_selectionne': mois_annee_selectionne,
+        'tableau_simplifie': tableau_simplifie,
+        'colonnes': colonnes,
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    }
+
+    return render(request, 'index_tableau_simplifie.html', context)
+
+
+@login_required
 def tableau_generiques(request):
 
     dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value

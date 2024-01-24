@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import traceback
 from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva
 import json
 from datetime import datetime, timedelta
@@ -257,12 +258,19 @@ def process_avoir_remises(format, tables_page, numero, date):
     
     format_facture = Format_facture.objects.get(pk=format)
     table_principale = []
-    specialites_pharmaceutiques = Decimal(0)
-    lpp_cinq_ou_dix = Decimal(0)
-    lpp_vingt = Decimal(0)
-    parapharmacie = Decimal(0)
+
+    specialites_pharmaceutiques_montant = Decimal(0)
+    lpp_cinq_ou_dix_montant = Decimal(0)
+    lpp_vingt_montant = Decimal(0)
+    parapharmacie_montant = Decimal(0)
+    total_montant = Decimal(0)
+
+    specialites_pharmaceutiques_remise = Decimal(0)
+    lpp_cinq_ou_dix_remise = Decimal(0)
+    lpp_vingt_remise = Decimal(0)
+    parapharmacie_remise = Decimal(0)
     avantage_commercial = Decimal(0)
-    total = Decimal(0)
+    total_remise = Decimal(0)
 
     # la reconnaissance de table ppale est une liste de 3 éléments : [0,0,"DATE par ex
     recotable = json.loads(format_facture.reconnaissance_table_ppale)
@@ -281,25 +289,30 @@ def process_avoir_remises(format, tables_page, numero, date):
         else:
             for i in range(len(table_principale)):
                 if "Spécialités Pharmaceutiques" in table_principale[i][0]:
-                    specialites_pharmaceutiques = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                    specialites_pharmaceutiques_montant = Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
+                    specialites_pharmaceutiques_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                 elif "LPP" in table_principale[i][0] or table_principale[i][0] == "":
                     try:
                         tva = correspondance_tva_cerp(int(table_principale[i][3]))
                         if tva == 0.055 or tva == 0.1:
-                            lpp_cinq_ou_dix = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                            lpp_cinq_ou_dix_montant = Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
+                            lpp_cinq_ou_dix_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                         elif tva == 0.2:
-                            lpp_vingt = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                            lpp_vingt_montant = Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
+                            lpp_vingt_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                         else:
                             logger.error(f"Problème tva LPP sur avoir {numero} - {date}")
                             continue
                     except:
                         continue
                 elif "Parapharmacie" in table_principale[i][0]:
-                    parapharmacie = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                    parapharmacie_montant = Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
+                    parapharmacie_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                 elif "Avantage Commercial" in table_principale[i][0]:
                     avantage_commercial = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
 
-            total = specialites_pharmaceutiques + lpp_cinq_ou_dix + lpp_vingt + parapharmacie + avantage_commercial
+            total_montant = specialites_pharmaceutiques_montant + lpp_cinq_ou_dix_montant + lpp_vingt_montant + parapharmacie_montant
+            total_remise = specialites_pharmaceutiques_remise + lpp_cinq_ou_dix_remise + lpp_vingt_remise + parapharmacie_remise + avantage_commercial
 
             date_mois_concerne = date.replace(day=1) - timedelta(days=1)
             mois_concerne = f"{date_mois_concerne.month}/{date_mois_concerne.year}"
@@ -308,12 +321,17 @@ def process_avoir_remises(format, tables_page, numero, date):
                     numero = numero,
                     date = date,
                     mois_concerne = mois_concerne,
-                    specialites_pharmaceutiques = specialites_pharmaceutiques,
-                    lpp_cinq_ou_dix = lpp_cinq_ou_dix,
-                    lpp_vingt = lpp_vingt,
-                    parapharmacie = parapharmacie,
+                    specialites_pharmaceutiques_montant = specialites_pharmaceutiques_montant,
+                    lpp_cinq_ou_dix_montant = lpp_cinq_ou_dix_montant,
+                    lpp_vingt_montant = lpp_vingt_montant,
+                    parapharmacie_montant = parapharmacie_montant,
+                    total_montant = total_montant,
+                    specialites_pharmaceutiques_remise = specialites_pharmaceutiques_remise,
+                    lpp_cinq_ou_dix_remise = lpp_cinq_ou_dix_remise,
+                    lpp_vingt_remise = lpp_vingt_remise,
+                    parapharmacie_remise = parapharmacie_remise,
                     avantage_commercial = avantage_commercial,
-                    total = total,
+                    total_remise = total_remise,
                 )
             
             nouvel_avoir.save()
@@ -331,6 +349,20 @@ def process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date
     format_facture = Format_facture.objects.get(pk=format)
     table_principale = []
     avoirs_exceptionnels = Decimal(0)
+
+    generiques_montant = Decimal(0)
+    marche_produits_montant = Decimal(0)
+    upp_montant = Decimal(0)
+    autres_montant = Decimal(0)
+    coalia_montant = Decimal(0)
+    pharmat_montant = Decimal(0)
+
+    generiques_remise = Decimal(0)
+    marche_produits_remise = Decimal(0)
+    upp_remise = Decimal(0)
+    autres_remise = Decimal(0)
+    coalia_remise = Decimal(0)
+    pharmat_remise = Decimal(0)
 
     # la reconnaissance de table ppale est une liste de 3 éléments : [0,0,"DATE par ex
     recotable = json.loads(format_facture.reconnaissance_table_ppale)
@@ -350,10 +382,46 @@ def process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date
             for i in range(len(table_principale)):
                 if "Avoirs Exceptionnels" in table_principale[i][0]:
                     avoirs_exceptionnels = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "Remises Génériques" in table_principale[i][0]:
+                    generiques_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    generiques_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "Remises Marchés-Produits" in table_principale[i][0]:
+                    marche_produits_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    marche_produits_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "Remises Marchés Groupement UPP" in table_principale[i][0]:
+                    upp_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    upp_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "Remises Autres" in table_principale[i][0]:
+                    if not "-" in table_principale[i][3].replace(" ", "").replace(",", "."):
+                        autres_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    else:
+                        autres_montant = Decimal(-1) * Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".").replace("-", "")))
+                    if not "-" in table_principale[i][2].replace(" ", "").replace(",", "."):
+                        autres_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                    else:
+                        autres_remise = Decimal(-1) * Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".").replace("-", "")))
+                elif "Remises Coalia" in table_principale[i][0]:
+                    coalia_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    coalia_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
+                elif "Remises Pharmat" in table_principale[i][0]:
+                    pharmat_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
+                    pharmat_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
 
             try:
                 avoir = Avoir_remises.objects.get(mois_concerne=mois_concerne)
                 avoir.avoirs_exceptionnels = avoirs_exceptionnels
+                avoir.generiques_montant = generiques_montant
+                avoir.marche_produits_montant = marche_produits_montant
+                avoir.upp_montant = upp_montant
+                avoir.autres_montant = autres_montant
+                avoir.coalia_montant = coalia_montant
+                avoir.pharmat_montant = pharmat_montant
+                avoir.generiques_remise = generiques_remise
+                avoir.marche_produits_remise = marche_produits_remise
+                avoir.upp_remise = upp_remise
+                avoir.autres_remise = autres_remise
+                avoir.coalia_remise = coalia_remise
+                avoir.pharmat_remise = pharmat_remise
                 avoir.save()
 
             except Exception as e:
@@ -659,6 +727,27 @@ def quicksort_tableau(list_of_lists):
         return quicksort_tableau(less) + [pivot] + quicksort_tableau(greater)
     
 
+def quicksort_dict(dictionary):
+    if len(dictionary) <= 1:
+        return dictionary
+
+    pivot_key = list(dictionary.keys())[0]
+
+    lesser = {}
+    equal = {}
+    greater = {}
+
+    for key, value in dictionary.items():
+        if convert_date(key) < convert_date(pivot_key):
+            lesser[key] = value
+        elif convert_date(key) == convert_date(pivot_key):
+            equal[key] = value
+        else:
+            greater[key] = value
+
+    return {**quicksort_dict(lesser), **equal, **quicksort_dict(greater)}
+
+
 def supprimer_fichiers_dossier(dossier, critere=""):
     fichiers = os.listdir(dossier)
 
@@ -680,3 +769,16 @@ def get_col_index(titre_colonne, tableau):
         for colonne in range(len(tableau)):
             if tableau[colonne] == titre_colonne:
                 return colonne
+            
+
+def get_data_from_dict(dict, mois_annee, categorie = None):
+    if categorie:
+        if mois_annee in dict and categorie in dict[mois_annee]:
+            return dict[mois_annee][categorie]
+        else:
+            return 0
+    else:
+        if mois_annee in dict:
+            return dict[mois_annee]
+        else:
+            return 0

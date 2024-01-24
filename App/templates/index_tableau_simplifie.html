@@ -23,24 +23,24 @@
     </div>
 
     <div class="content">
-        <h1>Tableau génériques</h1>
+        <h1>Tableau simplifié</h1>
 
         <h5>
             Dernier import CERP SAE : {{ dernier_import_cerp }} <br>
             Dernier import Digipharmacie : {{ dernier_import_digi }}
         </h5>
 
-        <form method="get" action="\tableau_generiques\">
-            <label for="laboratoire">Sélectionnez un laboratoire :</label>
-            <select name="laboratoire" id="laboratoire">
-                {% for lab in laboratoires %}
-                    <option value="{{ lab.fournisseur_generique }}" {% if lab.fournisseur_generique == laboratoire_selectionne %}selected{% endif %}>{{ lab.fournisseur_generique }}</option>
+        <form method="get" action="\tableau_simplifie\">
+            <label for="mois_annee">Sélectionnez un mois :</label>
+            <select name="mois_annee" id="mois_annee">
+                {% for ma in mois_annees %}
+                    <option value="{{ ma }}" {% if ma == mois_annee_selectionne %}selected{% endif %}>{{ ma }}</option>
                 {% endfor %}
             </select>
             <input type="submit" value="Filtrer">
         </form>
 
-        {% if tableau_generiques %}
+        {% if tableau_simplifie %}
 
             <table border="1">
                 <thead>
@@ -51,8 +51,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                {% for ligne in tableau_generiques %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                {% for ligne in tableau_simplifie %}
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or ligne.0|slice:":10" == 'DIFFERENCE' or not ligne.0 %} class="totaux" {% endif %}
                         {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
@@ -65,10 +65,6 @@
             </table>
         {% endif %}
 
-        <br><br>
-        <!--
-        <p>{{ achats_labo }}</p>
-        -->
     </div>
 </body>
 </html>
