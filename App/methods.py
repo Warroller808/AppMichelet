@@ -1077,7 +1077,11 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     )
 
     tableau_simplifie[map_lignes["DIFFERENCES REMISES"]][map_colonnes["REMISE THEORIQUE"]] = (
-        Decimal(tableau_simplifie[map_lignes["DIFFERENCE AV EXCEP"]][map_colonnes["REMISE THEORIQUE"]])
+        Decimal(tableau_simplifie[map_lignes["DIFFERENCE ASSIETTE GLOBALE"]][map_colonnes["REMISE THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["DIFFERENCE LPP 5,5 OU 10%"]][map_colonnes["REMISE THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["DIFFERENCE LPP 20%"]][map_colonnes["REMISE THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["DIFFERENCE PARA"]][map_colonnes["REMISE THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["DIFFERENCE AV EXCEP"]][map_colonnes["REMISE THEORIQUE"]])
         + Decimal(tableau_simplifie[map_lignes["DIFFERENCE AV COMM"]][map_colonnes["REMISE THEORIQUE"]])
     )
 
