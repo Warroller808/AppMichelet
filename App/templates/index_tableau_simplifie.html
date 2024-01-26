@@ -7,6 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="stylesheet" href="{% static 'css/style_tableau.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <title>Application contrôle remises - Pharmacie Michelet</title>
 </head>
 <body>
@@ -44,7 +45,7 @@
 
             <h6>Calcul des différences = remise obtenue - remise théorique</h6>
 
-            <table border="1">
+            <table id='tableau_simplifie' border="1">
                 <thead>
                 <tr>
                     {% for categorie in colonnes %}
@@ -68,5 +69,24 @@
         {% endif %}
 
     </div>
+
+    <script>
+        $(document).ready(function() {
+            // Remplacez "Titre de la colonne à mettre en gras" par le titre de la colonne que vous souhaitez mettre en gras.
+            var columnTitleToBold = "DIFFERENCE OBTENU - THEORIQUE";
+        
+            // Recherchez l'index de la colonne cible dans les en-têtes.
+            var columnIndex = $("#tableau_simplifie thead th").filter(function() {
+                return $(this).text() === columnTitleToBold;
+            }).index();
+        
+            // Si l'index est trouvé, ajoutez la classe CSS pour mettre en gras cette colonne.
+            if (columnIndex >= 0) {
+            $("#tableau_simplifie tbody tr").each(function() {
+                $(this).find("td:eq(" + columnIndex + ")").css("font-weight", "bold");
+            });
+            }
+        });
+    </script>
 </body>
 </html>
