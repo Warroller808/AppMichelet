@@ -189,7 +189,6 @@ def tableau_simplifie(request):
 
     mois_annees = list(data_dict.keys())
     mois_annee_selectionne = request.GET.get('mois_annee', '')
-    print(mois_annee_selectionne)
 
     if not mois_annee_selectionne and mois_annees:
         mois_annee_selectionne = "10/2023"

@@ -925,7 +925,7 @@ def init_tableau_simplifie(lignes, colonnes):
     for ligne in lignes:
         tableau_simplifie.append([ligne])
         for colonne in colonnes[1:]:
-            if ligne != '' and colonne != '' and colonne != 'DIFFERENCE OBTENU - THEORIQUE':
+            if ligne != '' and colonne != '' and colonne != 'DIFFERENCE OBTENU - THEORIQUE' and ligne != "DIFFERENCES REMISES" and ligne != "TOTAL GENERAL TOUTES CATEGORIES":
                 tableau_simplifie[i].append(0)
             else:
                 tableau_simplifie[i].append('')
@@ -1047,6 +1047,12 @@ def generer_tableau_simplifie(mois_annee, data_dict):
         + Decimal(tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["TOTAL OBTENU"]])
     , 2)
     tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["REMISE OBTENUE"]] = round(Decimal(tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["TOTAL OBTENU"]]) * Decimal(0.038), 2)
+    tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["AVANTAGE COMMERCIAL"]][map_colonnes["REMISE THEORIQUE"]] = (
         Decimal(tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["REMISE THEORIQUE"]])
@@ -1063,20 +1069,18 @@ def generer_tableau_simplifie(mois_annee, data_dict):
 
     entree_nb_boites = get_data_from_dict(data_dict_nb_boites, mois_annee)
     if entree_nb_boites:
-        tableau_simplifie[map_lignes["NB BOITES >450€"]][map_colonnes["REMISE THEORIQUE"]] = entree_nb_boites["Total_boites"]
-    tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE THEORIQUE"]] = Decimal(tableau_simplifie[map_lignes["NB BOITES >450€"]][map_colonnes["REMISE THEORIQUE"]]) * Decimal(15)
+        tableau_simplifie[map_lignes["NB BOITES >450€"]][map_colonnes["TOTAL THEORIQUE"]] = entree_nb_boites["Total_boites"]
+    tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE THEORIQUE"]] = Decimal(tableau_simplifie[map_lignes["NB BOITES >450€"]][map_colonnes["TOTAL THEORIQUE"]]) * Decimal(15)
     if avoir_remises:
         tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.avoirs_exceptionnels, 0)
+        tableau_simplifie[map_lignes["NB BOITES >450€"]][map_colonnes["TOTAL OBTENU"]] = round(Decimal(tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE OBTENUE"]]) / Decimal(15), 0)
     tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
         Decimal(tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE OBTENUE"]])
         - Decimal(tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["REMISE THEORIQUE"]])
     )
 
     tableau_simplifie[map_lignes["DIFFERENCES REMISES"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
-        Decimal(tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
-        + Decimal(tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
-        + Decimal(tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
-        + Decimal(tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        Decimal(tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
         + Decimal(tableau_simplifie[map_lignes["AVANTAGE COMMERCIAL"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
         + Decimal(tableau_simplifie[map_lignes["AVOIRS EXCEPTIONNELS"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
     )
@@ -1096,30 +1100,50 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     if avoir_remises:
         tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] = round(avoir_remises.generiques_montant, 2)
         tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.generiques_remise, 2)
+    tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["REMISE OBTENUE"]])
+        - Decimal(tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "MARCHE PRODUITS TOTAL HT")), 2)
     tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "MARCHE PRODUITS REMISE HT")), 2)
     if avoir_remises:
         tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] = round(avoir_remises.marche_produits_montant, 2)
         tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.marche_produits_remise, 2)
+    tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["REMISE OBTENUE"]])
+        - Decimal(tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "UPP TOTAL HT")), 2)
     tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "UPP REMISE HT")), 2)
     if avoir_remises:
         tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] = round(avoir_remises.upp_montant, 2)
         tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.upp_remise, 2)
+    tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["REMISE OBTENUE"]])
+        - Decimal(tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "COALIA TOTAL HT")), 2)
     tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "COALIA REMISE HT")), 2)
     if avoir_remises:
         tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] = round(avoir_remises.coalia_montant, 2)
         tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.coalia_remise, 2)
+    tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["REMISE OBTENUE"]])
+        - Decimal(tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "PHARMAT TOTAL HT")), 2)
     tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "PHARMAT REMISE HT")), 2)
     if avoir_remises:
         tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] = round(avoir_remises.pharmat_montant, 2)
         tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["REMISE OBTENUE"]] = round(avoir_remises.pharmat_remise, 2)
+    tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["REMISE OBTENUE"]])
+        - Decimal(tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]])
+    )
 
     tableau_simplifie[map_lignes["TOTAL GENERAL TOUTES CATEGORIES"]][map_colonnes["TOTAL THEORIQUE"]] = round(
         Decimal(tableau_simplifie[map_lignes["TOTAL"]][map_colonnes["TOTAL THEORIQUE"]])
@@ -1138,6 +1162,15 @@ def generer_tableau_simplifie(mois_annee, data_dict):
         + Decimal(tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["TOTAL OBTENU"]])
         + Decimal(tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["TOTAL OBTENU"]])
     , 2)
+
+    tableau_simplifie[map_lignes["TOTAL GENERAL TOUTES CATEGORIES"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]] = (
+        Decimal(tableau_simplifie[map_lignes["DIFFERENCES REMISES"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["GENERIQUES TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["MARCHE PRODUITS TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["UPP TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["COALIA TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+        + Decimal(tableau_simplifie[map_lignes["PHARMAT TOTAL HT"]][map_colonnes["DIFFERENCE OBTENU - THEORIQUE"]])
+    )
 
     return tableau_simplifie, colonnes
 
