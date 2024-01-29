@@ -12,6 +12,7 @@ urlpatterns = [
     path('tableau_synthese/', views.tableau_synthese, name='tableau_synthese'),
     path('tableau_simplifie/', views.tableau_simplifie, name='tableau_simplifie'),
     path('tableau_generiques/', views.tableau_generiques, name='tableau_generiques'),
+    path('tableau_teva/', views.tableau_teva, name='tableau_teva'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name = 'login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),

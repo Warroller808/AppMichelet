@@ -234,6 +234,29 @@ def tableau_generiques(request):
     return render(request, 'index_tableau_generiques.html', context)
 
 
+@login_required
+def tableau_teva(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    if request.method == 'POST':
+
+        tableau_teva, colonnes = generer_tableau_teva()
+
+        return render(request, 'index_tableau_teva.html', {
+            'tableau_teva': tableau_teva,
+            'colonnes': colonnes,
+            'dernier_import_cerp' : dernier_import_cerp,
+            'dernier_import_digi' : dernier_import_digi
+        })
+
+    return render(request, 'index_tableau_teva.html', {
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    })
+
+
 @staff_member_required
 def lancer_import_auto(request):
     if request.method == 'POST':

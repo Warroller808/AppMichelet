@@ -140,6 +140,8 @@ GitHub.sublime-settings
 .idea/
 media/
 /runserver.bat
+/shell.bat
+/open_with_venv.bat
 /testing_grounds.py
 logs/
 migrations/

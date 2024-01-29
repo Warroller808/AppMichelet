@@ -48,7 +48,7 @@ def import_factures_auto():
         logger.error('Erreur d\'importation sur les deux sites, les fichiers téléchargés ont été conservés.')
 
     logger.error("Completion des fournisseurs génériques...")
-    completer_fournisseur_generique_job()
+    completer_fournisseur_generique_et_type_job()
 
     logger.error("Catégorisation des achats...")
     categoriser_achats_job()
@@ -59,8 +59,8 @@ def import_factures_auto():
     logger.error("Traitement quotidien terminé.")
 
 
-def completer_fournisseur_generique_job():
-    from .utils import determiner_fournisseur_generique
+def completer_fournisseur_generique_et_type_job():
+    from .utils import determiner_fournisseur_generique, determiner_type
 
     try:
         produits = Produit_catalogue.objects.all()
@@ -81,10 +81,20 @@ def completer_fournisseur_generique_job():
                     compteur += 1
                     print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique} // {type_change}')
 
-        logger.error(f"Succès de la complétion du fournisseur générique. {compteur} modifications effectuées")
+            if produit.type == "":
+                new_type = determiner_type(produit.designation)
+
+                if new_type != "":
+                    prev_type = produit.type
+                    produit.type = new_type
+                    produit.save()
+                    compteur += 1
+                    print(f'type modifié pour le produit {produit.code} {produit.designation} : {prev_type} => {produit.type}')
+
+        logger.error(f"Succès de la complétion du fournisseur générique et du type. {compteur} modifications effectuées")
 
     except Exception as e:
-        logger.error(f"Echec de la complétion du fournisseur générique : {e}")
+        logger.error(f"Echec de la complétion du fournisseur générique ou du type : {e}")
     
 
 def categoriser_achats_job():

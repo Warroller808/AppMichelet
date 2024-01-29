@@ -41,6 +41,7 @@ class Achat(models.Model):
     numero_facture = models.CharField("NUMERO FACTURE", max_length=128, default='')
     fournisseur = models.CharField("FOURNISSEUR", max_length=128, default='')
     categorie = models.CharField("CATEGORIE", max_length=128, default='')
+    categorie_remise = models.CharField("CATEGORIE", max_length=128, default='')
 
     def __str__(self):
         return f"{self.code} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
@@ -150,15 +151,15 @@ class Command(BaseCommand):
         return resultat_suppression_achats
         
 
-    def completer_fournisseur_generique():
-        from .jobs import completer_fournisseur_generique_job
+    def completer_fournisseur_generique_et_type():
+        from .jobs import completer_fournisseur_generique_et_type_job
 
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:
             return "Script non exécuté"
         
         try:
-            completer_fournisseur_generique_job()
+            completer_fournisseur_generique_et_type_job()
             print("Succès")
 
         except Exception as e:
@@ -301,3 +302,124 @@ class Command(BaseCommand):
                 print(f'Erreur sur l\'achat {achat.code} : {e}')
 
         print('Mise à jour des achats terminée.')
+
+
+    def afficher_remises_teva():
+        from decimal import Decimal
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+
+        remises = (
+            Achat.objects
+            .filter(
+                    produit__fournisseur_generique="TEVA",
+                    produit__type="GENERIQUE",
+            )
+            .values('remise_pourcent')
+        ).distinct()
+
+        print(remises)
+
+        remises_2 = (
+            Achat.objects
+            .filter(
+                    fournisseur="TEVA",
+                    produit__type="GENERIQUE",
+                    remise_pourcent__gt=Decimal(0.029),
+                    remise_pourcent__lt=Decimal(0.099),
+            )
+            .values('code', 'remise_pourcent')
+        ).distinct()
+
+        print(remises_2)
+
+
+    def categoriser_remises_teva():
+        from .utils import get_categorie_remise
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        achats = (
+            Achat.objects
+            .filter(
+                produit__fournisseur_generique = "TEVA"
+            )
+        )
+
+        for achat in achats:
+            produit = Produit_catalogue.objects.get(code=achat.code, annee=achat.date.year)
+            achat.categorie_remise = get_categorie_remise(produit.fournisseur_generique, achat.fournisseur, achat.remise_pourcent)
+            achat.save()
+            print(f"Catégorie remise attribuée au produit {produit.code} - {produit.fournisseur_generique} => {achat.categorie_remise}")
+
+        print("Succès")
+
+        
+    def corriger_cat_generiques():
+        #Permet de retirer le type générique aux produits de laboratoires n'ayant pas le nom du labo dans leur désignation
+
+        from .constants import LABORATOIRES_GENERIQUES
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        produits = (
+            Produit_catalogue.objects
+            .filter(
+                type="GENERIQUE"
+            )
+            .exclude(
+                fournisseur_generique=""
+            )
+        )
+
+        for produit in produits:
+            if not any(element in produit.designation.upper().replace('®', '') for element in LABORATOIRES_GENERIQUES):
+                prev_type = produit.type
+                produit.type = ""
+                produit.save()
+                print(f"{produit.code} {produit.designation} - ce produit a été retiré des génériques : {prev_type} {produit.fournisseur_generique} => '' {produit.fournisseur_generique}")
+
+
+    def extract_remises_theoriques_manquantes():
+        from decimal import Decimal
+        from AppMichelet.settings import BASE_DIR
+        import pandas as pd
+        import os
+        from django.db.models import F, Q
+
+        excel_file_path = os.path.join(BASE_DIR, f'extractions/Produits_sans_remise_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
+
+        achats = (
+            Achat.objects
+            .filter(
+                Q(produit__remise_grossiste = "") | Q(produit__remise_direct = ""),
+                produit__type = "GENERIQUE",
+                produit__annee = int(2023)
+            )
+            .exclude(
+                remise_pourcent = Decimal(0)
+            )
+            .values(
+                'code',
+                'designation',
+                'tva',
+                'prix_unitaire_ht',
+                'remise_pourcent',
+                'fournisseur',
+                'categorie',
+                type=F('produit__type'),
+                fournisseur_generique=F('produit__fournisseur_generique'),
+                remise_direct=F('produit__remise_direct'),
+                remise_grossiste=F('produit__remise_grossiste'),
+            )
+        ).distinct()
+
+        df = pd.DataFrame.from_records(achats)
+
+        df.to_excel(excel_file_path, index=False)

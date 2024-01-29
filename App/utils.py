@@ -586,6 +586,19 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
     return new_fournisseur_generique
 
 
+def determiner_type(designation):
+    from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES
+
+    new_type = ""
+
+    if any(element in designation.upper() for element in MARCHES_PRODUITS):
+        new_type = "MARCHE PRODUITS"
+    elif any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
+        new_type = "GENERIQUE"
+    
+    return new_type
+
+
 def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp, lpp):
     from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES
     
@@ -647,7 +660,7 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                 else:
                     new_categorie = "PROBLEME TVA GENERIQUE DIRECT"
             else:
-                new_categorie = "DIRECT GENERIQUE NON CATEGORISE"
+                new_categorie = "DIRECT LABO NON CATEGORISE"
         else:
             new_categorie = "NON CATEGORISE"
 
@@ -656,6 +669,28 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         new_categorie = "NON CATEGORISE ERREUR"
 
     return new_categorie
+
+
+def get_categorie_remise(fournisseur_generique, fournisseur, remise_pourcent):
+    new_categorie_remise = ""
+
+    if fournisseur_generique == "TEVA" or fournisseur == "TEVA":
+        if remise_pourcent > -0.001 and remise_pourcent < 0.001:
+            new_categorie_remise = "TEVA REMISE 0%"
+        elif remise_pourcent > 0.0249 and remise_pourcent < 0.0251:
+            new_categorie_remise = "TEVA REMISE 2,5%"
+        elif remise_pourcent > 0.099 and remise_pourcent < 0.101:
+            new_categorie_remise = "TEVA REMISE 10%"
+        elif remise_pourcent > 0.199 and remise_pourcent < 0.201:
+            new_categorie_remise = "TEVA REMISE 20%"
+        elif remise_pourcent > 0.299 and remise_pourcent < 0.301:
+            new_categorie_remise = "TEVA REMISE 30%"
+        elif remise_pourcent > 0.399 and remise_pourcent < 0.401:
+            new_categorie_remise = "TEVA REMISE 40%"
+        else:
+            new_categorie_remise = "NON ELIGIBLE AU RATTRAPAGE"
+
+    return new_categorie_remise
 
 
 def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
