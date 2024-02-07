@@ -204,17 +204,9 @@ def main_cerp():
 
     #traitement page 1
     logger.error('traitement de la page 1')
-    process_page_cerp(driver)
-
-    success = True
+    success, faulty_range = process_page_cerp(driver)
 
     for page in range(2, total_pages + 1):
-
-        button_right = driver.find_element(By.CSS_SELECTOR, 'i.v-icon.notranslate.ci.ci-chevron_right.theme--light.black--text[aria-hidden="true"]')
-        driver.execute_script("arguments[0].click();", button_right)
-
-        logger.error(f'traitement de la page {page}')
-        success, faulty_range = process_page_cerp(driver)
 
         if not success:
             if not faulty_range is None:
@@ -224,6 +216,12 @@ def main_cerp():
             logger.error("Fin du programme et suppression des fichiers")
             supprimer_fichiers_dossier(DL_FOLDER_PATH_AUTO, "CERP_SAE")
             break
+
+        button_right = driver.find_element(By.CSS_SELECTOR, 'i.v-icon.notranslate.ci.ci-chevron_right.theme--light.black--text[aria-hidden="true"]')
+        driver.execute_script("arguments[0].click();", button_right)
+
+        logger.error(f'traitement de la page {page}')
+        success, faulty_range = process_page_cerp(driver)
     
     driver.quit()
     
