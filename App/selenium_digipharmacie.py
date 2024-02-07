@@ -165,7 +165,7 @@ def main_digi():
         end_date = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
         input_end_date.send_keys(end_date)
 
-        logger.error(f'CERP date range : {start_date} - {end_date}')
+        logger.error(f'Digipharmacie date range : {start_date} - {end_date}')
 
         time.sleep(1)
 
