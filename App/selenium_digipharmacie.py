@@ -91,6 +91,8 @@ def main_digi():
 
     if LAST_IMPORT_DATE:
         LAST_IMPORT_DATE = datetime.strptime(LAST_IMPORT_DATE.value, '%d/%m/%Y')
+        #set import range of 1 week
+        LAST_IMPORT_DATE = LAST_IMPORT_DATE + timedelta(days=-7)
     else:
         LAST_IMPORT_DATE = datetime(2023, 10, 1)
 
@@ -162,6 +164,8 @@ def main_digi():
         input_end_date = driver.find_element(By.NAME, 'end_date_id')
         end_date = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
         input_end_date.send_keys(end_date)
+
+        logger.error(f'CERP date range : {start_date} - {end_date}')
 
         time.sleep(1)
 

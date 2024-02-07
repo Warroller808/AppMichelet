@@ -149,6 +149,23 @@ class Command(BaseCommand):
             resultat_suppression_achats = f"Erreur lors de la suppression des achats : {str(e)}"
         
         return resultat_suppression_achats
+    
+
+    def routine():
+        from jobs import completer_fournisseur_generique_et_type_job, categoriser_achats_job, calcul_remises_job
+
+        confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
+        if not confirmation:
+            return "Script non exécuté"
+        
+        try:
+            completer_fournisseur_generique_et_type_job()
+            categoriser_achats_job()
+            calcul_remises_job()
+            print("Succès")
+
+        except Exception as e:
+            print(f'Echec : {e}')
         
 
     def completer_fournisseur_generique_et_type():

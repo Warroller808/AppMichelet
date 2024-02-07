@@ -134,6 +134,8 @@ def main_cerp():
 
     if LAST_IMPORT_DATE:
         LAST_IMPORT_DATE = datetime.strptime(LAST_IMPORT_DATE.value, '%d/%m/%Y')
+        #set import range of 1 week
+        LAST_IMPORT_DATE = LAST_IMPORT_DATE + timedelta(days=-7)
     else:
         LAST_IMPORT_DATE = datetime(2020, 1, 1)
 
@@ -180,6 +182,8 @@ def main_cerp():
     date_fin = datetime.now() + timedelta(days=1)
     date_range = f'>{LAST_IMPORT_DATE.strftime("%d/%m/%Y")} & <{date_fin.strftime("%d/%m/%Y")}'
     input_date.send_keys(date_range)
+
+    logger.error(f'CERP date range : {date_range}')
 
     time.sleep(1)
 
