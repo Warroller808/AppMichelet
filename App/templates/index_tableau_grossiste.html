@@ -27,21 +27,28 @@
     </div>
 
     <div class="content">
-        <h1>Tableau TEVA</h1>
+        <h1>Tableau grossiste</h1>
 
         <h5>
             Dernier import CERP SAE : {{ dernier_import_cerp }} <br>
             Dernier import Digipharmacie : {{ dernier_import_digi }}
         </h5>
 
-        <form method="post" action="\tableau_teva\">
-            {% csrf_token %}
-            <button type="submit">Afficher le tableau</button>
+        <form method="get" action="\tableau_grossiste\">
+            <label for="annee">Sélectionnez une année :</label>
+            <select name="annee" id="annee">
+                {% for an in annees %}
+                    <option value="{{ an }}" {% if an == annee_selectionnee %}selected{% endif %}>{{ an }}</option>
+                {% endfor %}
+            </select>
+            <input type="submit" value="Filtrer">
         </form>
 
-        {% if tableau_teva %}
+        {% if tableau_grossiste %}
 
-            <table id='tableau_teva' border="1">
+            <h6>Calcul des différences = remise obtenue - remise théorique</h6>
+
+            <table id='tableau_grossiste' border="1">
                 <thead>
                 <tr>
                     {% for categorie in colonnes %}
@@ -50,8 +57,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                {% for ligne in tableau_teva %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                {% for ligne in tableau_grossiste %}
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or ligne.0|slice:":10" == 'DIFFERENCE' or not ligne.0 %} class="totaux" {% endif %}
                         {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
@@ -64,28 +71,6 @@
             </table>
         {% endif %}
 
-        <br><br>
     </div>
-
-    <script>
-        $(document).ready(function() {
-            // Remplacez les titres de colonnes que vous souhaitez mettre en gras dans cette liste.
-            var columnsToBold = ["GROSSISTE TOTAL HT", "DIFFERENCE REMISE GROSSISTE", "DIRECT TOTAL HT", "DIFFERENCE REMISE DIRECT", "RATTRAPAGE THEORIQUE", "RATTRAPAGE OBTENU"];
-            
-            // Parcourez la liste des titres de colonnes et mettez en gras chaque colonne correspondante.
-            $.each(columnsToBold, function(index, columnTitle) {
-                var columnIndex = $("#tableau_teva thead th").filter(function() {
-                    return $(this).text() === columnTitle;
-                }).index();
-    
-                // Si l'index est trouvé, ajoutez la classe CSS pour mettre en gras cette colonne.
-                if (columnIndex >= 0) {
-                    $("#tableau_teva tbody tr").each(function() {
-                        $(this).find("td:eq(" + columnIndex + ")").css("font-weight", "bold");
-                    });
-                }
-            });
-        });
-    </script>
 </body>
 </html>

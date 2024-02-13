@@ -13,10 +13,12 @@
     <div class="navbar">
         <a href="\">Importer des factures</a>
         <a href="\tableau_synthese\">Tableau Synthèse</a>
+        <a href="\tableau_grossiste\">Tableau Grossiste</a>
         <a href="\tableau_simplifie\">Tableau Simplifié</a>
         <a href="\tableau_generiques\">Tableau Génériques</a>
         <a href="\tableau_teva\">Tableau TEVA</a>
         <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
+        <a href="\telecharger_achats\">Télécharger une liste d'achats</a>
 
         {% if user.is_authenticated %}
             <a href="{% url 'App:logout' %}?next={{ request.path }}">Se déconnecter</a>
@@ -40,18 +42,23 @@
 
             <h6>Montants HT = montants avant remise, avoirs déduits<br>
                 Remise assiette globale théorique = Assiette globale -9% x 2,5%<br>
-                Remise grossiste totale théorique = Assiette globale -9% x 2,5% + Parapharmacie x 3,8% + LPP x 3,8% + Nb boites >450€ x 15€ + Avantage commercial<br>
+                Remise assiette globale obtenue 2,5% = ligne spécialités pharmaceutiques des avoirs de remises<br>
+                Total remise grossiste théorique = Assiette globale -9% x 2,5% + Parapharmacie x 3,8% + LPP x 3,8% + Nb boites >450€ x 15€ + Avantage commercial<br>
                 Avantage commercial = Assiette globale -9% x (3,8% - 2,5%)<br>
+                Différences de remises = remise obtenue - remise théorique<br>
+                Sous total remise grossiste théorique = somme (assiette globale + LPP + parapharmacie) x 3,8% théorique<br>
+                Sous total remise grossiste obtenue = somme (assiette globale + LPP + parapharmacie) x 3,8% obtenue<br>
+                Différence sous total remise grossiste = sous total remise grossiste obtenue - sous total remise grossiste théorique<br>
+                Total remise grossiste obtenue = somme des remises obtenues : remise spécialités pharmaceutiques (assiette globale) + remise LPP + remise parapharmacie + avantage commercial + remise >450€<br>
             </h6>
             
-
             <table border="1">
                 <thead>
-                <tr>
-                    {% for categorie in categories_assiette_globale %}
-                        <th class="table-header">{{ categorie }}</th>
-                    {% endfor %}
-                </tr>
+                    <tr>
+                        {% for categorie in categories_assiette_globale %}
+                            <th class="table-header">{{ categorie }}</th>
+                        {% endfor %}
+                    </tr>
                 </thead>
                 <tbody>
                 {% for ligne in tableau_synthese_assiette_globale %}
@@ -70,11 +77,14 @@
 
         {% if tableau_synthese_autres %}
         
-        <br>
-        <hr>
-        <br>
+            <br>
+            <hr>
+            <br>
 
-        <h3>Autres catégories</h3>
+            <h3>Autres catégories</h3>
+
+            <h6>Remises obtenues = remises récupérées sur les factures<br>
+            </h6>
 
             <table border="1">
                 <thead>

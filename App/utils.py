@@ -212,6 +212,8 @@ def process_tables(format, tables_page):
                                     )
                                 else:
                                     donnees_ligne.append(0)
+                            else:
+                                donnees_ligne.append(0)
 
                             if format_facture.indice_montant_ht_hors_remise != -1:
                                 if ligne_sans_none[format_facture.indice_montant_ht_hors_remise] != "":

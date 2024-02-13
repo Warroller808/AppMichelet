@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import HttpResponse
+from django.core.files.storage import default_storage
 from .methods import *
 import pandas as pd
 from .models import Produit_catalogue, Constante
@@ -46,6 +47,123 @@ def upload_factures(request):
                                         })
 
     return render(request, 'index.html')
+
+
+@login_required
+def telecharger_achats(request):
+
+    events = ""
+
+    try:
+        data_categories = (
+                Achat.objects
+                .values('categorie')
+                .distinct()
+            )
+        
+        categories = [str(element['categorie']) for element in data_categories]
+        categorie_selectionnee = request.POST.get('categorie', '')
+
+        if not categorie_selectionnee and categories:
+            categorie_selectionnee = ">450€ tva 2,1%"
+
+        data_annees = (
+                Achat.objects
+                .annotate(annee=ExtractYear('date'))
+                .values('annee')
+                .distinct()
+            )
+        
+        annees = ["Tous"] + [str(element['annee']) for element in data_annees]
+        annee_selectionnee = request.POST.get('annee', '')
+
+        if not annee_selectionnee and annees:
+                annee_selectionnee = "2023"
+
+    except Exception as e:
+        logger.error(f'Erreur dans la gestion des filtres : {e}')
+        events = "Erreur lors de la gestion des filtres."
+    
+    if request.method == 'POST':
+
+        filtre_annee = Q()
+
+        if annee_selectionnee != "Tous":
+            filtre_annee = Q(annee=annee_selectionnee)
+
+        data = (
+            Achat.objects
+            .annotate(annee=ExtractYear('date'))
+            .filter(
+                filtre_annee,
+                categorie=categorie_selectionnee
+            )
+            .values(
+                'code',
+                'designation',
+                'nb_boites',
+                'prix_unitaire_ht',
+                'prix_unitaire_remise_ht',
+                'remise_pourcent',
+                'montant_ht_hors_remise',
+                'montant_ht',
+                'produit__remise_grossiste',
+                'produit__remise_direct',
+                'remise_theorique_totale',
+                'tva',
+                'date',
+                'numero_facture',
+                'fournisseur',
+                'categorie',
+                'categorie_remise',
+                'produit__annee',
+                'produit__fournisseur_generique',
+                'produit__coalia',
+                'produit__pharmupp',
+                'produit__lpp',
+                'produit__creation_auto',
+            )
+        )
+
+        if len(data) > 0:
+            try:
+                excel_file = telecharger_achats_excel(data)
+                date_actuelle = datetime.now().strftime("%d-%m-%Y")
+                filename = f"{date_actuelle}_achats.xlsx"
+
+                response = HttpResponse(excel_file, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                response['Content-Disposition'] = f'attachment; filename={filename}'
+
+                default_storage.delete(filename)
+
+                return response
+            
+            except Exception as e:
+                logger.error(f'Erreur lors du traitement du fichier excel : {e}')
+                events = "Erreur lors de la génération du fichier."
+        
+        else:
+            events = "Aucun achat ne correspond à ces critères."
+
+        context = {
+            'categories': categories,
+            'categorie_selectionnee': categorie_selectionnee,
+            'annees': annees,
+            'annee_selectionnee': annee_selectionnee,
+            'events': events
+        }
+
+        return render(request, 'index_telecharger_achats.html', context)
+    
+    else:
+        context = {
+            'categories': categories,
+            'categorie_selectionnee': categorie_selectionnee,
+            'annees': annees,
+            'annee_selectionnee': annee_selectionnee
+        }
+
+        return render(request, 'index_telecharger_achats.html', context)
 
 
 @staff_member_required
@@ -161,7 +279,7 @@ def tableau_synthese(request):
     #Générer le tableau dans methods
     if request.method == 'POST':
 
-        tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres = generer_tableau_synthese()
+        tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres, explications = generer_tableau_synthese()
 
         return render(request, 'index_tableau.html', {
             'tableau_synthese_assiette_globale': tableau_synthese_assiette_globale,
@@ -169,6 +287,7 @@ def tableau_synthese(request):
             'tableau_generiques': tableau_generiques,
             'categories_assiette_globale': categories_assiette_globale,
             'categories_autres': categories_autres,
+            'explications': explications,
             'dernier_import_cerp' : dernier_import_cerp,
             'dernier_import_digi' : dernier_import_digi
         })
@@ -177,6 +296,39 @@ def tableau_synthese(request):
         'dernier_import_cerp' : dernier_import_cerp,
         'dernier_import_digi' : dernier_import_digi
     })
+
+
+@login_required
+def tableau_grossiste(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    data_annees = (
+        Achat.objects
+        .annotate(annee=ExtractYear('date'))
+        .values('annee')
+        .distinct()
+    )
+
+    annees = [str(element['annee']) for element in data_annees]
+    annee_selectionnee = request.GET.get('annee', '')
+
+    if not annee_selectionnee and annees:
+        annee_selectionnee = "2023"
+
+    tableau_grossiste, colonnes = generer_tableau_grossiste(annee_selectionnee)
+
+    context = {
+        'annees': annees,
+        'annee_selectionnee': annee_selectionnee,
+        'tableau_grossiste': tableau_grossiste,
+        'colonnes': colonnes,
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    }
+
+    return render(request, 'index_tableau_grossiste.html', context)
 
 
 @login_required

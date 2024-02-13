@@ -3,10 +3,12 @@ import pdfplumber
 import logging
 import traceback
 from datetime import datetime
+from django.http import HttpResponse
 from django.db import models
 from django.conf import settings
 from django.db.models import Sum, F, Q, ExpressionWrapper, fields, Subquery
 from django.db.models.functions import ExtractMonth, ExtractYear, Cast, Concat
+from openpyxl import Workbook
 from decimal import Decimal
 from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
 from .utils import *
@@ -337,10 +339,65 @@ def save_data(table_donnees):
     return events
 
 
-def generer_tableau_synthese():
+def telecharger_achats_excel(data):
 
-    # if categoriser():
-    #     print("Catégorisation effectuée")
+    try:
+        workbook = Workbook()
+        sheet = workbook.active
+
+        champs = data[0].keys()
+
+        sheet.append(
+            [
+                'Code',
+                'Designation',
+                'Nb de boites',
+                'Prix unitaire ht',
+                'Prix unitaire remisé',
+                'Remise en pourcents',
+                'Montant ht avant remise',
+                'Montant ht après remise',
+                'Remise grossiste présente dans le catalogue',
+                'Remise direct présente dans le catalogue',
+                'Remise théorique calculée',
+                'TVA',
+                'Date de la facture',
+                'Numero facture',
+                'Format de la facture',
+                'Categorie',
+                'Categorie de remise si applicable (TEVA, EG)',
+                'Année associée au produit dans le catalogue',
+                'Fournisseur générique',
+                'Vendu par Coalia',
+                'Présent sur Pharmupp',
+                'Indiqué LPP sur le site CERP',
+                'Créé automatiquement par l\'outil'
+            ]
+        )
+
+        for achat in data:
+            sheet.append([achat[champ] for champ in champs])
+
+        from io import BytesIO
+        excel_file = BytesIO()
+        workbook.save(excel_file)
+        excel_file.seek(0)
+
+        return excel_file
+
+    except Exception as e:
+        logger.error(f'Erreur de génération du fichier Excel : {e}')
+        return None
+
+
+# -----------------------------------
+
+# -------- TABLEAUX -------- 
+
+# -----------------------------------
+
+
+def generer_tableau_synthese():
 
     tableau_synthese_assiette_globale = []
     tableau_synthese_autres = []
@@ -357,17 +414,73 @@ def generer_tableau_synthese():
         'REMISE THEORIQUE >450€',
         'PARAPHARMACIE TOTAL HT',
         'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
+        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
         'REMISE GROSSISTE TOTALE THEORIQUE',
         'REMISE LPP 5,5 OU 10% OBTENUE',
         'REMISE LPP 20% OBTENUE',
         'REMISE PARAPHARMACIE OBTENUE',
         'REMISE AVANTAGE COMMERCIAL OBTENUE',
         'REMISE >450€ OBTENUE',
+        'SOUS TOTAL REMISE GROSSISTE OBTENUE',
+        'DIFFERENCE SOUS TOTAL REMISE GROSSISTE',
         'REMISE GROSSISTE TOTALE OBTENUE',
         'DIFFERENCE REMISE GROSSISTE',
     ]
 
     categories_autres = [
+        'Mois/Année',
+        'GENERIQUE 2,1% TOTAL HT',
+        'GENERIQUE 5,5% TOTAL HT',
+        'GENERIQUE 10% TOTAL HT',
+        'GENERIQUE 20% TOTAL HT',
+        "GENERIQUE TOTAL HT",
+        "NON GENERIQUE DIRECT LABO TOTAL HT",
+        'MARCHE PRODUITS TOTAL HT',
+        'MARCHE PRODUITS REMISE OBTENUE HT',
+        'UPP TOTAL HT',
+        'UPP REMISE OBTENUE HT',
+        'COALIA TOTAL HT',
+        'COALIA REMISE OBTENUE HT',
+        'PHARMAT TOTAL HT',
+        'TOTAL GENERAL HT',
+    ]
+
+    displayed_categories_assiette_globale = [
+        'Mois/Année',
+        'ASSIETTE GLOBALE : CA < 450€',
+        'ASSIETTE GLOBALE -9%',
+        'REMISE ASSIETTE GLOBALE THEORIQUE 2,5%',
+        'REMISE ASSIETTE GLOBALE OBTENUE 2,5%',
+        'DIFFERENCE REMISE ASSIETTE GLOBALE',
+        'NB BOITES > 450€',
+        'REMISE THEORIQUE > 450€ : 15€/BTE',
+        'PARAPHARMACIE TOTAL HT',
+        'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
+        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
+        'TOTAL REMISE GROSSISTE THEORIQUE',
+        'REMISE LPP 5,5 OU 10% OBTENUE',
+        'REMISE LPP 20% OBTENUE',
+        'REMISE PARAPHARMACIE OBTENUE',
+        'REMISE AVANTAGE COMMERCIAL OBTENUE',
+        'REMISE >450€ OBTENUE',
+        'SOUS TOTAL REMISE GROSSISTE OBTENUE',
+        'DIFFERENCE SOUS TOTAL REMISE GROSSISTE',
+        'TOTAL REMISE GROSSISTE OBTENUE',
+        'DIFFERENCE REMISE GROSSISTE',
+    ]
+
+    explications = {
+        "REMISE ASSIETTE GLOBALE OBTENUE 2,5%": "Ligne spécialités pharmaceutiques des avoirs de remises",
+        "DIFFERENCE REMISE ASSIETTE GLOBALE": "Remise obtenue 2,5% - remise théorique 2,5%",
+        "SOUS TOTAL REMISE GROSSISTE THEORIQUE": "Somme (assiette globale + LPP + parapharmacie) x 3,8% théorique",
+        "TOTAL REMISE GROSSISTE THEORIQUE": "Somme (assiette globale + LPP + parapharmacie) x 3,8% + remise > 450€ theorique",
+        "SOUS TOTAL REMISE GROSSISTE OBTENUE": "Somme (assiette globale + LPP + parapharmacie) x 3,8% obtenue",
+        "DIFFERENCE SOUS TOTAL REMISE GROSSISTE": "Sous total remise grossiste obtenue - sous total remise grossiste théorique",
+        "TOTAL REMISE GROSSISTE OBTENUE": "Somme des remises obtenues : remise spécialités pharmaceutiques (assiette globale) + remise LPP + remise parapharmacie + avantage commercial + remise >450€",
+        "DIFFERENCE REMISE GROSSISTE": "Total remise grossiste obtenue - total remise grossiste théorique",
+    }
+
+    displayed_categories_autres = [
         'Mois/Année',
         'GENERIQUE 2,1% TOTAL HT',
         'GENERIQUE 5,5% TOTAL HT',
@@ -432,11 +545,11 @@ def generer_tableau_synthese():
         tableau_synthese_assiette_globale = totaux_pourcentages_par_annee(tableau_synthese_assiette_globale, categories_assiette_globale, map_assglob)
         tableau_synthese_autres = totaux_pourcentages_par_annee(tableau_synthese_autres, categories_autres, map_autres)
 
-        return tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres
+        return tableau_synthese_assiette_globale, displayed_categories_assiette_globale, tableau_synthese_autres, displayed_categories_autres, explications
     
     except Exception as e:
         logger.error(f"Erreur de génération du tableau synthèse, erreur {e}. Traceback : {traceback.format_exc()}")
-        return tableau_synthese_assiette_globale, categories_assiette_globale, tableau_synthese_autres, categories_autres
+        return tableau_synthese_assiette_globale, displayed_categories_assiette_globale, tableau_synthese_autres, displayed_categories_autres, explications
     
 
 def remplir_valeurs_categories(data_dict, tableau, categories):
@@ -498,6 +611,11 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob):
                 remise_lpp_vingt = Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * Decimal(0.038)
             else:
                 remise_lpp_vingt = Decimal(0)
+
+            sous_total = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.038), 2)
+            sous_total += round(Decimal(remise_parapharmacie), 2)
+            sous_total += round(Decimal(remise_lpp_cinq_ou_dix) + Decimal(remise_lpp_vingt), 2)
+            tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE THEORIQUE"]] = sous_total
             
             remise_totale = round(Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]]), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]]), 2)
@@ -524,6 +642,19 @@ def remplir_remises_obtenues(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]] = round(avoir_remises.avantage_commercial, 2)
             tableau[ligne][map_assglob["REMISE >450€ OBTENUE"]] = round(avoir_remises.avoirs_exceptionnels, 2)
 
+            tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])
+                                                                    )
+
+            tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE OBTENUE"]] = round(Decimal(avoir_remises.specialites_pharmaceutiques_montant) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE OBTENUE"]] += round(Decimal(avoir_remises.parapharmacie_montant) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE OBTENUE"]] += round(Decimal(avoir_remises.lpp_cinq_ou_dix_montant) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE OBTENUE"]] += round(Decimal(avoir_remises.lpp_vingt_montant) * Decimal(0.038), 2)
+
+            tableau[ligne][map_assglob["DIFFERENCE SOUS TOTAL REMISE GROSSISTE"]] = (Decimal(tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE OBTENUE"]])
+                                                                       - Decimal(tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE THEORIQUE"]])
+                                                                    )
+
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] = tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]] 
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% OBTENUE"]]
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]]
@@ -531,10 +662,6 @@ def remplir_remises_obtenues(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL OBTENUE"]]
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]] += tableau[ligne][map_assglob["REMISE >450€ OBTENUE"]]
 
-            tableau[ligne][map_assglob["DIFFERENCE REMISE ASSIETTE GLOBALE"]] = (Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]])
-                                                                       - Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]])
-                                                                    )
-            
             tableau[ligne][map_assglob["DIFFERENCE REMISE GROSSISTE"]] = (Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE OBTENUE"]])
                                                                        - Decimal(tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]])
                                                                     )
@@ -678,6 +805,13 @@ def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
                 pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
+        elif "Remise > 450€ 15€/bt" in categories[colonne]:
+            pourcentages.append('')
+        elif categories[colonne].startswith("Remise"):
+            if totaux[colonne - 1] != 0 and totaux[colonne - 1] != '':
+                pourcentages.append(f'{round(totaux[colonne] / totaux[colonne - 1] * 100, 2)} %')
+            else:
+                pourcentages.append('NA')
         else:
             pourcentages.append('')
     
@@ -696,19 +830,136 @@ def extract_nb_boites():
     )
 
     for entry in data_nb_boites:
-            mois_annee = f"{entry['mois']}/{entry['annee']}"
-            total_boites = entry['total_boites']
-            #remise_theorique_totale = entry['remise_theorique_totale']
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        total_boites = entry['total_boites']
+        #remise_theorique_totale = entry['remise_theorique_totale']
 
-            # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
-            if mois_annee not in data_dict_nb_boites:
-                data_dict_nb_boites[mois_annee] = {}
+        # Si la clé mois_annee n'existe pas encore dans le dictionnaire, créez-la
+        if mois_annee not in data_dict_nb_boites:
+            data_dict_nb_boites[mois_annee] = {}
 
-            # Remplissage du dictionnaire avec les valeurs
-            data_dict_nb_boites[mois_annee]["Total_boites"] = total_boites
-            #data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
+        # Remplissage du dictionnaire avec les valeurs
+        data_dict_nb_boites[mois_annee]["Total_boites"] = total_boites
+        #data_dict[mois_annee][f"{categorie} REMISE HT"] = remise_theorique_totale
 
     return data_dict_nb_boites
+
+
+# -----------------------------------
+
+# -------- TABLEAU GROSSISTE -------- 
+
+# -----------------------------------
+
+
+def generer_tableau_grossiste(annee):
+
+    colonnes = [
+        "Mois/Année",
+        "CA < 450€ 3,8%",
+        "Remise < 450€ 3,8%",
+        "CA > 450€ 15€/bt",
+        "nb de boites",
+        "Remise > 450€ 15€/bt",
+        "CA Générique",
+        "Remise Générique",
+        "CA Marché produits",
+        "Remise Marché produits",
+        "CA UPP",
+        "Remise UPP",
+        "CA COALIA",
+        "Remise COALIA",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+
+    data = (
+        Achat.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(
+            annee=annee,
+            fournisseur__icontains="CERP"
+        )
+        .values('mois', 'annee', 'categorie')
+        .annotate(
+            total_ht_hors_remise=Sum('montant_ht_hors_remise'), 
+            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
+        )
+    )
+    
+    tableau_grossiste = init_tableau_grossiste(map_colonnes, data)
+
+    for entry in data:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_grossiste:
+            if ligne[0] == mois_annee:
+                if '<450€ tva 2,1%' in entry['categorie']:
+                    ligne[map_colonnes["CA < 450€ 3,8%"]] = Decimal(ligne[map_colonnes["CA < 450€ 3,8%"]]) + round(Decimal(entry['total_ht_hors_remise']) * Decimal(0.91), 2)
+                elif '>450€ tva 2,1%' in entry['categorie']:
+                    ligne[map_colonnes["CA > 450€ 15€/bt"]] = Decimal(ligne[map_colonnes["CA > 450€ 15€/bt"]]) + round(entry['total_ht_hors_remise'], 2)
+                elif entry['categorie'].startswith("GENERIQUE"):
+                    ligne[map_colonnes["CA Générique"]] = Decimal(ligne[map_colonnes["CA Générique"]]) + round(entry['total_ht_hors_remise'], 2)
+                    ligne[map_colonnes["Remise Générique"]] = Decimal(ligne[map_colonnes["Remise Générique"]]) + round(entry['remise_obtenue'], 2)
+                elif 'MARCHE PRODUITS' in entry['categorie']:
+                    ligne[map_colonnes["CA Marché produits"]] = Decimal(ligne[map_colonnes["CA Marché produits"]]) + round(entry['total_ht_hors_remise'], 2)
+                    ligne[map_colonnes["Remise Marché produits"]] = Decimal(ligne[map_colonnes["Remise Marché produits"]]) + round(entry['remise_obtenue'], 2)
+                elif 'UPP' in entry['categorie']:
+                    ligne[map_colonnes["CA UPP"]] = Decimal(ligne[map_colonnes["CA UPP"]]) + round(entry['total_ht_hors_remise'], 2)
+                    ligne[map_colonnes["Remise UPP"]] = Decimal(ligne[map_colonnes["Remise UPP"]]) + round(entry['remise_obtenue'], 2)
+                elif 'COALIA' in entry['categorie']:
+                    ligne[map_colonnes["CA COALIA"]] = Decimal(ligne[map_colonnes["CA COALIA"]]) + round(entry['total_ht_hors_remise'], 2)
+                    ligne[map_colonnes["Remise COALIA"]] = Decimal(ligne[map_colonnes["Remise COALIA"]]) + round(entry['remise_obtenue'], 2)
+
+    tableau_grossiste = remplir_autres_colonnes_tab_grossiste(tableau_grossiste, map_colonnes)
+    tableau_grossiste = quicksort_tableau(tableau_grossiste)
+
+    tableau_grossiste = totaux_pourcentages_par_annee(tableau_grossiste, colonnes, map_colonnes)
+
+    return tableau_grossiste, colonnes
+
+
+def init_tableau_grossiste(map_colonnes, data):
+    tableau=[]
+    mois_annees = []
+
+    for entry in data:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def remplir_autres_colonnes_tab_grossiste(tableau, map_colonnes):
+
+    try:
+        data_dict_nb_boites = extract_nb_boites()
+
+        for ligne in range(len(tableau)):
+            if tableau[ligne][0] in data_dict_nb_boites:
+                tableau[ligne][map_colonnes["nb de boites"]] = data_dict_nb_boites[tableau[ligne][0]]["Total_boites"]
+            else:
+                tableau[ligne][map_colonnes["nb de boites"]] = round(Decimal(0), 0)
+
+        for ligne in range(len(tableau)):
+            tableau[ligne][map_colonnes["Remise < 450€ 3,8%"]] = round(Decimal(tableau[ligne][map_colonnes["CA < 450€ 3,8%"]]) * Decimal(0.038), 2)
+            tableau[ligne][map_colonnes["Remise > 450€ 15€/bt"]] = round(Decimal(tableau[ligne][map_colonnes["nb de boites"]]) * Decimal(15), 2)
+
+    except Exception as e:
+        logger.error(f'Erreur de traitement des autres colonnes du tableau grossiste : {e}. Traceback : {traceback.format_exc()}')
+
+    return tableau
+
+
+# -----------------------------------
+
+# -------- TABLEAU GENERIQUES ------- 
+
+# -----------------------------------
 
 
 def generer_tableau_generiques(fournisseur_generique):
