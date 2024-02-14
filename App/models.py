@@ -293,8 +293,10 @@ class Command(BaseCommand):
             'lpp',
             'remise_grossiste',
             'remise_direct',
-            'tva'
-        ).distinct()
+            'tva',
+            'date_creation',
+            'creation_auto'
+        )
 
         df = pd.DataFrame.from_records(data)
 
