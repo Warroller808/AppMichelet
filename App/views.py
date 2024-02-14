@@ -197,6 +197,69 @@ def telecharger_achats(request):
         return render(request, 'index_telecharger_achats.html', context)
 
 
+@login_required
+def telecharger_produits_tableau_simplifie(request):
+
+    if request.method == 'GET':
+
+        mois_annee = request.GET.get('date')
+
+        mois = mois_annee.split('/')[0]
+        annee = mois_annee.split('/')[1]
+
+        data = (
+            Achat.objects
+            .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+            .filter(
+                Q(fournisseur__icontains='CERP') | Q(fournisseur__icontains='PHARMAT'),
+                Q(categorie__startswith='GENERIQUE') | Q(categorie__icontains='MARCHE PRODUITS') | Q(categorie__icontains='UPP') | Q(categorie__icontains='COALIA') | Q(categorie__icontains='PHARMAT'),
+                mois=mois,
+                annee=annee,
+            )
+            .values(
+                'code',
+                'designation',
+                'nb_boites',
+                'prix_unitaire_ht',
+                'prix_unitaire_remise_ht',
+                'remise_pourcent',
+                'montant_ht_hors_remise',
+                'montant_ht',
+                'produit__remise_grossiste',
+                'produit__remise_direct',
+                'remise_theorique_totale',
+                'tva',
+                'date',
+                'numero_facture',
+                'fournisseur',
+                'categorie',
+                'categorie_remise',
+                'produit__annee',
+                'produit__fournisseur_generique',
+                'produit__coalia',
+                'produit__pharmupp',
+                'produit__lpp',
+                'produit__creation_auto',
+            )
+        )
+
+        try:
+            excel_file = telecharger_achats_excel(data)
+            date_actuelle = datetime.now().strftime("%d-%m-%Y")
+            filename = f"{date_actuelle}_achats_{mois_annee}.xlsx"
+
+            response = HttpResponse(excel_file, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename={filename}'
+
+            default_storage.delete(filename)
+
+            return response
+
+        except Exception as e:
+            logger.error(f'Erreur lors du traitement du fichier excel (tableau simplifié): {e}')
+        
+
+
 @staff_member_required
 def upload_catalogue_excel(request):
     if request.method == 'POST':

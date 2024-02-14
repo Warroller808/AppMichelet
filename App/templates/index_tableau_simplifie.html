@@ -44,6 +44,8 @@
             <input type="submit" value="Filtrer">
         </form>
 
+        <button type="button" id="downloadButton">Télécharger la liste des produits (hors assiette globale)</button>
+
         {% if tableau_simplifie %}
 
             <h6>Calcul des différences = remise obtenue - remise théorique</h6>
@@ -89,6 +91,31 @@
                 $(this).find("td:eq(" + columnIndex + ")").css("font-weight", "bold");
             });
             }
+        });
+
+        document.getElementById("downloadButton").addEventListener("click", function() {
+            // Récupérer la date sélectionnée
+            var selectedDate = document.getElementById("mois_annee").value;
+
+            // Créer un nouveau formulaire
+            var newForm = document.createElement("form");
+            newForm.method = "get";
+            newForm.action = "\\telecharger_produits_tableau_simplifie\\";
+
+            // Créer un champ pour la date sélectionnée
+            var dateInput = document.createElement("input");
+            dateInput.type = "hidden";
+            dateInput.name = "date";
+            dateInput.value = selectedDate;
+
+            // Ajouter le champ au formulaire
+            newForm.appendChild(dateInput);
+
+            // Ajouter le formulaire à la page
+            document.body.appendChild(newForm);
+
+            // Soumettre le formulaire
+            newForm.submit();
         });
     </script>
 </body>

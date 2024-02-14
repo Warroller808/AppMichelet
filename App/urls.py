@@ -12,6 +12,7 @@ urlpatterns = [
     path('tableau_synthese/', views.tableau_synthese, name='tableau_synthese'),
     path('tableau_grossiste/', views.tableau_grossiste, name='tableau_grossiste'),
     path('tableau_simplifie/', views.tableau_simplifie, name='tableau_simplifie'),
+    path('telecharger_produits_tableau_simplifie/', views.telecharger_produits_tableau_simplifie, name='telecharger_produits_tableau_simplifie'),
     path('tableau_generiques/', views.tableau_generiques, name='tableau_generiques'),
     path('tableau_teva/', views.tableau_teva, name='tableau_teva'),
     path('telecharger_achats/', views.telecharger_achats, name='telecharger_achats'),
