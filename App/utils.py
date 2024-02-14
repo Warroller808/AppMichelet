@@ -763,6 +763,24 @@ def convert_date(date_str):
     return datetime.strptime(date_str, "%m/%Y")
 
 
+def quicksort_liste(liste):
+    if len(liste) <= 1:
+        return liste
+    else:
+        pivot = liste[0]
+        less = [x for x in liste[1:] if x < pivot]
+        greater = [x for x in liste[1:] if x >= pivot]
+        return quicksort_liste(less) + [pivot] + quicksort_liste(greater)
+    
+
+def tri_couples_mois_annee(liste):
+    def cle_tri(couple):
+        mois, annee = couple.split('/')
+        return (int(annee), int(mois))
+
+    return sorted(liste, key=cle_tri)
+    
+
 def quicksort_tableau(list_of_lists):
     if len(list_of_lists) <= 1:
         return list_of_lists

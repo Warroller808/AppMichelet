@@ -1327,6 +1327,7 @@ def data_dict_tab_simplifie():
     data = (
         Achat.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(Q(fournisseur__icontains='CERP') | Q(fournisseur__icontains='PHARMAT'))
         .values('mois', 'annee', 'categorie')
         .annotate(
             total_ht_hors_remise=Sum('montant_ht_hors_remise'), 

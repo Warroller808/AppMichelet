@@ -44,6 +44,13 @@
                 {% endfor %}
             </select>
             <br><br>
+            <label for="mois">Sélectionnez un mois :</label>
+            <select name="mois" id="mois">
+                {% for mo in mois %}
+                    <option value="{{ mo }}" {% if mo == mois_selectionne %}selected{% endif %}>{{ mo }}</option>
+                {% endfor %}
+            </select>
+            <br><br>
             <input type="submit" value="Télécharger">
             <br><br>
             {% if events %}

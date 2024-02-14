@@ -53,6 +53,12 @@ def upload_factures(request):
 def telecharger_achats(request):
 
     events = ""
+    categories = []
+    categorie_selectionnee = ""
+    annees = []
+    annee_selectionnee = ""
+    mois = []
+    mois_selectionne = ""
 
     try:
         data_categories = (
@@ -74,11 +80,26 @@ def telecharger_achats(request):
                 .distinct()
             )
         
-        annees = ["Tous"] + [str(element['annee']) for element in data_annees]
+        annees = [str(element['annee']) for element in data_annees]
+        annees = ["Tous"] + quicksort_liste(annees)
         annee_selectionnee = request.POST.get('annee', '')
 
         if not annee_selectionnee and annees:
-                annee_selectionnee = "2023"
+            annee_selectionnee = "Tous"
+
+        data_mois = (
+                Achat.objects
+                .annotate(mois=ExtractMonth('date'))
+                .values('mois')
+                .distinct()
+            )
+        
+        mois = [str(element['mois']) for element in data_mois]
+        mois = ["Tous"] + [str(intelement) for intelement in quicksort_liste([int(strelement) for strelement in mois])]
+        mois_selectionne = request.POST.get('mois', '')
+
+        if not mois_selectionne and mois:
+            mois_selectionne = "Tous"
 
     except Exception as e:
         logger.error(f'Erreur dans la gestion des filtres : {e}')
@@ -91,11 +112,17 @@ def telecharger_achats(request):
         if annee_selectionnee != "Tous":
             filtre_annee = Q(annee=annee_selectionnee)
 
+        filtre_mois = Q()
+
+        if mois_selectionne != "Tous":
+            filtre_mois = Q(mois=mois_selectionne)
+
         data = (
             Achat.objects
-            .annotate(annee=ExtractYear('date'))
+            .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
             .filter(
                 filtre_annee,
+                filtre_mois,
                 categorie=categorie_selectionnee
             )
             .values(
@@ -150,6 +177,8 @@ def telecharger_achats(request):
             'categorie_selectionnee': categorie_selectionnee,
             'annees': annees,
             'annee_selectionnee': annee_selectionnee,
+            'mois': mois,
+            'mois_selectionne': mois_selectionne,
             'events': events
         }
 
@@ -160,7 +189,9 @@ def telecharger_achats(request):
             'categories': categories,
             'categorie_selectionnee': categorie_selectionnee,
             'annees': annees,
-            'annee_selectionnee': annee_selectionnee
+            'annee_selectionnee': annee_selectionnee,
+            'mois': mois,
+            'mois_selectionne': mois_selectionne,
         }
 
         return render(request, 'index_telecharger_achats.html', context)
