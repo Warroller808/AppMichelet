@@ -873,6 +873,7 @@ def generer_tableau_grossiste(annee):
         "Remise UPP",
         "CA COALIA",
         "Remise COALIA",
+        "CA Total",
     ]
 
     map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
@@ -952,6 +953,16 @@ def remplir_autres_colonnes_tab_grossiste(tableau, map_colonnes):
         for ligne in range(len(tableau)):
             tableau[ligne][map_colonnes["Remise < 450€ 3,8%"]] = round(Decimal(tableau[ligne][map_colonnes["CA < 450€ 3,8%"]]) * Decimal(0.038), 2)
             tableau[ligne][map_colonnes["Remise > 450€ 15€/bt"]] = round(Decimal(tableau[ligne][map_colonnes["nb de boites"]]) * Decimal(15), 2)
+
+        for ligne in range(len(tableau)):
+            tableau[ligne][map_colonnes["CA Total"]] = round(
+                Decimal(tableau[ligne][map_colonnes["CA < 450€ 3,8%"]])
+                + Decimal(tableau[ligne][map_colonnes["CA > 450€ 15€/bt"]])
+                + Decimal(tableau[ligne][map_colonnes["CA Générique"]])
+                + Decimal(tableau[ligne][map_colonnes["CA Marché produits"]])
+                + Decimal(tableau[ligne][map_colonnes["CA UPP"]])
+                + Decimal(tableau[ligne][map_colonnes["CA COALIA"]]) 
+            , 2)
 
     except Exception as e:
         logger.error(f'Erreur de traitement des autres colonnes du tableau grossiste : {e}. Traceback : {traceback.format_exc()}')

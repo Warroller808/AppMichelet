@@ -207,12 +207,13 @@ def telecharger_produits_tableau_simplifie(request):
         mois = mois_annee.split('/')[0]
         annee = mois_annee.split('/')[1]
 
+        #Q(categorie__startswith='GENERIQUE') | Q(categorie__icontains='MARCHE PRODUITS') | Q(categorie__icontains='UPP') | Q(categorie__icontains='COALIA') | Q(categorie__icontains='PHARMAT'),
+
         data = (
             Achat.objects
             .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
             .filter(
                 Q(fournisseur__icontains='CERP') | Q(fournisseur__icontains='PHARMAT'),
-                Q(categorie__startswith='GENERIQUE') | Q(categorie__icontains='MARCHE PRODUITS') | Q(categorie__icontains='UPP') | Q(categorie__icontains='COALIA') | Q(categorie__icontains='PHARMAT'),
                 mois=mois,
                 annee=annee,
             )
