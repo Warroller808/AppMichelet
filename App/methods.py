@@ -269,6 +269,10 @@ def save_data(table_donnees):
                 new_fournisseur_generique = determiner_fournisseur_generique(dictligne["designation"], dictligne["fournisseur"])
                 new_type = "GENERIQUE"
 
+            #if dictligne["date"].year == datetime.now().year:
+                # SI NOUVEAU PRODUIT DE CETTE ANNEE, ON REGARDE SI ON A PLUS D'INFOS SUR LE PRODUIT DE L'ANNEE PRECEDENTE
+                #new_type, new_fournisseur_generique, new_lpp, new_remise_grossiste, new_remise_direct = check_last_year(dictligne['code'], new_fournisseur_generique, new_type)
+
             nouveau_produit = Produit_catalogue(
                 code = dictligne["code"],
                 annee = int(dictligne["date"].year),

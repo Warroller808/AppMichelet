@@ -152,7 +152,7 @@ class Command(BaseCommand):
     
 
     def routine():
-        from jobs import completer_fournisseur_generique_et_type_job, categoriser_achats_job, calcul_remises_job
+        from .jobs import completer_fournisseur_generique_et_type_job, categoriser_achats_job, calcul_remises_job
 
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:

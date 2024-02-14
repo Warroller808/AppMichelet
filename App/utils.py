@@ -582,6 +582,8 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
                         new_fournisseur_generique = "ARROW"
                     elif element == "MYLAN":
                         new_fournisseur_generique = "VIATRIS"
+                    elif element == " TS ":
+                        new_fournisseur_generique = "TEVA"
                     else:
                         new_fournisseur_generique = element.replace(" ", "")
 
@@ -693,6 +695,14 @@ def get_categorie_remise(fournisseur_generique, fournisseur, remise_pourcent):
             new_categorie_remise = "NON ELIGIBLE AU RATTRAPAGE"
 
     return new_categorie_remise
+
+
+def check_last_year(code, new_fournisseur_generique, new_type):
+    new_lpp = ""
+    new_remise_grossiste = ""
+    new_remise_direct = ""
+
+    return new_type, new_fournisseur_generique, new_lpp, new_remise_grossiste, new_remise_direct
 
 
 def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
