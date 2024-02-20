@@ -111,6 +111,7 @@ NON_REMBOURSABLES_ET_OTC = [
     "DIOSMINE",
     "DOXYLAMINE",
     "GINGKO",
+    "GINKGO",
     "Ibuprofène EG",
     "IBUPROFENE EG",
     "KENDIX",

@@ -786,14 +786,21 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
             #Cas particulier Pharmat car pas de remises catalogue
             if nouvel_achat.remise_pourcent != 0:
                 nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(nouvel_achat.remise_pourcent), 4)
-        elif "CERP" not in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE" or "NON GENERIQUE" in nouvel_achat.categorie:
-            #GENERIQUE NON CERP donc en direct
+        elif "CERP" not in nouvel_achat.fournisseur and (
+            nouvel_achat.categorie.split()[0].upper() == "GENERIQUE"
+            or "NON GENERIQUE" in nouvel_achat.categorie
+            or "OTC" in nouvel_achat.categorie
+        ):
             if produit.remise_direct:
                 for r in json.loads(produit.remise_direct):
                     if nouvel_achat.nb_boites >= r[0]:
                         remise = r[1]
                 nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(remise), 4)
-        elif "CERP" in nouvel_achat.fournisseur and nouvel_achat.categorie.split()[0].upper() == "GENERIQUE" or "NON GENERIQUE" in nouvel_achat.categorie:
+        elif "CERP" in nouvel_achat.fournisseur and (
+            nouvel_achat.categorie.split()[0].upper() == "GENERIQUE"
+            or "NON GENERIQUE" in nouvel_achat.categorie
+            or "OTC" in nouvel_achat.categorie
+        ):
             #GENERIQUE CERP
             if produit.remise_grossiste:
                 for r in json.loads(produit.remise_grossiste):
