@@ -15,6 +15,7 @@ urlpatterns = [
     path('telecharger_produits_tableau_simplifie/', views.telecharger_produits_tableau_simplifie, name='telecharger_produits_tableau_simplifie'),
     path('tableau_generiques/', views.tableau_generiques, name='tableau_generiques'),
     path('tableau_teva/', views.tableau_teva, name='tableau_teva'),
+    path('tableau_eg/', views.tableau_eg, name='tableau_eg'),
     path('telecharger_achats/', views.telecharger_achats, name='telecharger_achats'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name = 'login'),

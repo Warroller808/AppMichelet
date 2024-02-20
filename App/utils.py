@@ -44,11 +44,22 @@ def extraire_date(format, texte):
         regex_date = re.compile(Format_facture.objects.get(pk=format).regex_date)
 
         # Recherche la date dans le texte
-        if "AVOIR REMISES CERP" not in format:
-            match = re.search(regex_date, texte)
-        else:
+        if "AVOIR REMISES CERP" in format:
             match = re.search(regex_date, texte.replace(" ", ""))
-
+        elif format == "EG":
+            regex_date = [
+                re.compile(Format_facture.objects.get(pk=format).regex_date),
+                r'datefacture/iNvoicedate:(\d{2}/\d{2}/\d{4})n°',
+                r'DATE:(\d{2}/\d{2}/\d{4})CLIENT:'
+            ]
+            match = None
+            i = 0
+            while match is None and i < len(regex_date):
+                match = re.search(regex_date[i], texte.replace(" ", ""))
+                i += 1
+        else:
+            match = re.search(regex_date, texte)
+                
         if match:
             date_formatee = match.group(1).strip().replace(".","/").replace(" ","/")
         
@@ -67,10 +78,21 @@ def extraire_numero_facture(format, texte):
         regex_numero_facture = re.compile(Format_facture.objects.get(pk=format).regex_numero_facture)  
 
         # Recherche le numéro de facture dans le texte
-        if "AVOIR REMISES CERP" not in format:
-            match = re.search(regex_numero_facture, texte)
-        else:
+        if "AVOIR REMISES CERP" in format:
             match = re.search(regex_numero_facture, texte.replace(" ", ""))
+        elif format == "EG":
+            regex_numero_facture = [
+                re.compile(Format_facture.objects.get(pk=format).regex_numero_facture),
+                r'fACTUre/Number:(.{1,15})PHARMACIE',
+                r'PIECE:(.{1,15})thegeneralterms'
+            ]
+            match = None
+            i = 0
+            while match is None and i < len(regex_numero_facture):
+                match = re.search(regex_numero_facture[i], texte.replace(" ", ""))
+                i += 1
+        else:
+            match = re.search(regex_numero_facture, texte)
 
         #print(match.group(1))
         return match.group(1) if match else None
@@ -116,8 +138,6 @@ def pre_traitement_table(format_facture: Format_facture, table_principale):
                     ligne[6]
                 ])
                 i += 1
-
-        #print(table_pretraitee)
 
     return table_pretraitee
 
@@ -170,6 +190,14 @@ def process_tables(format, tables_page):
                         try:
 
                             if format_facture.indice_code_produit != -1:
+                                try:
+                                    if len(ligne_sans_none[format_facture.indice_code_produit]) > 13:
+                                        ligne_sans_none[format_facture.indice_designation] = str(ligne_sans_none[format_facture.indice_code_produit][14:]).replace(" ", "") + ligne_sans_none[format_facture.indice_designation]
+                                        ligne_sans_none[format_facture.indice_code_produit] = str(ligne_sans_none[format_facture.indice_code_produit][0:13])
+                                except Exception as e:
+                                    logger.error(f"Erreur traitement spécial EG de cette ligne pour la désignation : {ligne_sans_none} - ERREUR : {e}")
+                                    continue
+
                                 code = ligne_sans_none[format_facture.indice_code_produit]
                                 donnees_ligne.append(''.join(caractere for caractere in code if not caractere.isalpha() and not caractere.isspace()))
                             else: donnees_ligne.append("")
@@ -221,6 +249,17 @@ def process_tables(format, tables_page):
                                 else: donnees_ligne.append(0)
                             else: 
                                 donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")) * int(ligne_sans_none[format_facture.indice_nb_boites]))
+
+                            if format_facture.indice_montant_ht != -1 and format_facture.indice_tva != -1:
+                                try:
+                                    if format_facture.format == "EG":
+                                        if " " in ligne_sans_none[format_facture.indice_montant_ht]:
+                                            position = ligne_sans_none[format_facture.indice_montant_ht].find(" ")
+                                            ligne_sans_none[format_facture.indice_tva] = str(ligne_sans_none[format_facture.indice_montant_ht][position:]).replace(" ", "") + ligne_sans_none[format_facture.indice_tva]
+                                            ligne_sans_none[format_facture.indice_montant_ht] = str(ligne_sans_none[format_facture.indice_montant_ht][0:position])
+                                except Exception as e:
+                                    logger.error(f"Erreur traitement spécial EG de cette ligne pour la TVA : {ligne_sans_none} - ERREUR : {e}")
+                                    continue
 
                             if format_facture.indice_montant_ht != -1:
                                 if ligne_sans_none[format_facture.indice_montant_ht] != "":
@@ -604,7 +643,7 @@ def determiner_type(designation):
 
 
 def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp, lpp):
-    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES
+    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES, NON_REMBOURSSABLES_ET_OTC
     
     new_categorie = ""
     
@@ -614,7 +653,9 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         elif fournisseur == "CERP PHARMAT" or fournisseur == "PHARMAT" :
             new_categorie = "PHARMAT"
         elif "CERP" in fournisseur:
-            if (generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES)) and not any(element in designation.upper() for element in NON_GENERIQUES):
+            if "MAGASIN GENERAL" in fournisseur:
+                new_categorie = "MAGASIN GENERAL"
+            elif (generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES)) and not any(element in designation.upper() for element in NON_GENERIQUES):
                 if (tva > 0.0209 and tva < 0.0211):
                     new_categorie = "GENERIQUE 2,1%"
                 elif (tva > 0.0549 and tva < 0.0551):
@@ -652,6 +693,8 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         elif "TEVA" in fournisseur or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
             if any(element in designation.upper() for element in NON_GENERIQUES):
                 new_categorie = "NON GENERIQUE DIRECT LABO"
+            elif any(element in designation.upper() for element in NON_REMBOURSSABLES_ET_OTC):
+                new_categorie = "OTC OU NON REMBOURSABLE"
             elif generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
                 if (tva > 0.0209 and tva < 0.0211):
                     new_categorie = "GENERIQUE 2,1%"
@@ -693,6 +736,25 @@ def get_categorie_remise(fournisseur_generique, fournisseur, remise_pourcent):
             new_categorie_remise = "TEVA REMISE 40%"
         else:
             new_categorie_remise = "NON ELIGIBLE AU RATTRAPAGE"
+    elif fournisseur_generique == "EG" or fournisseur == "EG":
+        if remise_pourcent > -0.001 and remise_pourcent < 0.001:
+            new_categorie_remise = "EG REMISE 0%"
+        elif remise_pourcent > 0.0249 and remise_pourcent < 0.0251:
+            new_categorie_remise = "EG REMISE 2,5%"
+        elif remise_pourcent > 0.049 and remise_pourcent < 0.051:
+            new_categorie_remise = "EG REMISE 5%"
+        elif remise_pourcent > 0.099 and remise_pourcent < 0.101:
+            new_categorie_remise = "EG REMISE 10%"
+        elif remise_pourcent > 0.149 and remise_pourcent < 0.151:
+            new_categorie_remise = "EG REMISE 15%"
+        elif remise_pourcent > 0.199 and remise_pourcent < 0.201:
+            new_categorie_remise = "EG REMISE 20%"
+        elif remise_pourcent > 0.299 and remise_pourcent < 0.301:
+            new_categorie_remise = "EG REMISE 30%"
+        elif remise_pourcent > 0.399 and remise_pourcent < 0.401:
+            new_categorie_remise = "EG REMISE 40%"
+        else:
+            new_categorie_remise = "EG REMISE NON LISTEE"
 
     return new_categorie_remise
 

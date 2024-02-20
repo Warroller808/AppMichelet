@@ -18,6 +18,7 @@
         <a href="\tableau_simplifie\">Tableau Simplifié</a>
         <a href="\tableau_generiques\">Tableau Génériques</a>
         <a href="\tableau_teva\">Tableau TEVA</a>
+        <a href="\tableau_eg\">Tableau EG</a>
         <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
         <a href="\telecharger_achats\">Télécharger une liste d'achats</a>
 
@@ -40,6 +41,11 @@
         </form>
 
         {% if tableau_teva %}
+
+            <h6>Théorique = calculé à partir des % de remises du catalogue.
+                Obtenu = calculé à partir des % de remises effectuées sur facture.
+                Pour le moment, pas d'informations sur les rattrapages ou remises supplémentaires obtenus sur avoirs exceptionnels.
+            </h6>
 
             <table id='tableau_teva' border="1">
                 <thead>

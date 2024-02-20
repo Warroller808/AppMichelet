@@ -42,7 +42,14 @@ NON_GENERIQUES = [
     "OROCAL",
     "PELMEG",
     "TRANSPIPEG",
-    "XIMEPEG"
+    "XIMEPEG",
+
+    #EG
+    "DUOFILM",
+    "SYNTHOLKINÉ",
+    "BROCHOKOD",
+    "MITOSYL",
+    "FLEXITOL"
 ]
 
 
@@ -76,4 +83,37 @@ PRODUITS_LPP = [
     "BIFLEX",
     "LEGILET",
     "VENOFL",
+]
+
+
+NON_REMBOURSSABLES_ET_OTC = [
+    #TEVA
+    "ATOVAQUONE",
+    "PIRACETAM",
+    "FINASTERIDE",
+    "SILDENAFIL",
+    "TADALAFIL",
+    "GESTODENE",
+    "DONEPEZIL",
+    "GALANTAMINE",
+    "MEMANTINE",
+
+    #EG
+    "Sildénafil",
+    "ACICLOVIR",
+    "Finastéride",
+    "AMBROXOL",
+    "AMOROLFINE",
+    "BISACODYL",
+    "CLOTRIMAZOLE",
+    "Dexpanthénol",
+    "DEXPANTHENOL",
+    "DIOSMINE",
+    "DOXYLAMINE",
+    "GINGKO",
+    "Ibuprofène EG",
+    "IBUPROFENE EG",
+    "KENDIX",
+    "OMEGA 3 EG",
+    "PANTOPRAZOLE EG"
 ]

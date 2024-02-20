@@ -504,6 +504,29 @@ def tableau_teva(request):
     })
 
 
+@login_required
+def tableau_eg(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    if request.method == 'POST':
+
+        tableau_eg, colonnes = generer_tableau_eg()
+
+        return render(request, 'index_tableau_eg.html', {
+            'tableau_eg': tableau_eg,
+            'colonnes': colonnes,
+            'dernier_import_cerp' : dernier_import_cerp,
+            'dernier_import_digi' : dernier_import_digi
+        })
+
+    return render(request, 'index_tableau_eg.html', {
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    })
+
+
 @staff_member_required
 def lancer_import_auto(request):
     if request.method == 'POST':

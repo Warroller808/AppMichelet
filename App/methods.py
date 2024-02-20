@@ -120,8 +120,9 @@ def extract_data(facture_path, facture_name):
                     numero_facture = extraire_numero_facture(format, texte_page)
 
                 if not date or (format_inst.regex_numero_facture != "NA" and not numero_facture):
-                    print(f'error date ou num sur page {num_page + 1}')
+                    print(f'error date ou num sur page {num_page + 1} - {facture_name}')
                     logger.error(f'Erreur de récupération de la date ou du numéro de facture donc page ignorée. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
+                    texte_page_tout.append(texte_page)
                     continue
 
                 date = datetime.strptime(date, '%d/%m/%Y').date()
@@ -441,6 +442,8 @@ def generer_tableau_synthese():
         "NON GENERIQUE DIRECT LABO TOTAL HT",
         'MARCHE PRODUITS TOTAL HT',
         'MARCHE PRODUITS REMISE OBTENUE HT',
+        'MAGASIN GENERAL TOTAL HT',
+        'MAGASIN GENERAL REMISE OBTENUE HT',
         'UPP TOTAL HT',
         'UPP REMISE OBTENUE HT',
         'COALIA TOTAL HT',
@@ -494,6 +497,8 @@ def generer_tableau_synthese():
         "NON GENERIQUE DIRECT LABO TOTAL HT",
         'MARCHE PRODUITS TOTAL HT',
         'MARCHE PRODUITS REMISE OBTENUE HT',
+        'MAGASIN GENERAL TOTAL HT',
+        'MAGASIN GENERAL REMISE OBTENUE HT',
         'UPP TOTAL HT',
         'UPP REMISE OBTENUE HT',
         'COALIA TOTAL HT',
@@ -799,9 +804,9 @@ def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
                 pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["DIRECT REMISE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
-        elif "TOTAL REMISE OBTENUE HT" in categories[colonne]:
+        elif "TOTAL REMISE OBTENUE HT (HORS 0%)" in categories[colonne]:
             if totaux[colonne - 2] != 0 and totaux[colonne - 2] != '':
-                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["TOTAL REMISE THEORIQUE HT"]] * 100, 2)} %')
+                pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["TOTAL REMISE THEORIQUE HT (HORS 0%)"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "REMISE OBTENUE HT" in categories[colonne]:
@@ -900,6 +905,10 @@ def generer_tableau_grossiste(annee):
             if ligne[0] == mois_annee:
                 if '<450€ tva 2,1%' in entry['categorie']:
                     ligne[map_colonnes["CA < 450€ 3,8%"]] = Decimal(ligne[map_colonnes["CA < 450€ 3,8%"]]) + round(Decimal(entry['total_ht_hors_remise']) * Decimal(0.91), 2)
+                elif 'LPP 5,5 OU 10%' in entry['categorie']:
+                    ligne[map_colonnes["CA < 450€ 3,8%"]] = Decimal(ligne[map_colonnes["CA < 450€ 3,8%"]]) + round(Decimal(entry['total_ht_hors_remise']) * Decimal(0.91), 2)
+                elif 'PARAPHARMACIE' in entry['categorie']:
+                    ligne[map_colonnes["CA < 450€ 3,8%"]] = Decimal(ligne[map_colonnes["CA < 450€ 3,8%"]]) + round(Decimal(entry['total_ht_hors_remise']) * Decimal(0.91), 2)
                 elif '>450€ tva 2,1%' in entry['categorie']:
                     ligne[map_colonnes["CA > 450€ 15€/bt"]] = Decimal(ligne[map_colonnes["CA > 450€ 15€/bt"]]) + round(entry['total_ht_hors_remise'], 2)
                 elif entry['categorie'].startswith("GENERIQUE"):
@@ -968,360 +977,6 @@ def remplir_autres_colonnes_tab_grossiste(tableau, map_colonnes):
         logger.error(f'Erreur de traitement des autres colonnes du tableau grossiste : {e}. Traceback : {traceback.format_exc()}')
 
     return tableau
-
-
-# -----------------------------------
-
-# -------- TABLEAU GENERIQUES ------- 
-
-# -----------------------------------
-
-
-def generer_tableau_generiques(fournisseur_generique):
-    
-    colonnes = [
-        "Mois/Année",
-        "GROSSISTE 2,1% MONTANT HT",
-        "GROSSISTE 5,5% MONTANT HT",
-        "GROSSISTE 10% MONTANT HT",
-        "GROSSISTE 20% MONTANT HT",
-        "GROSSISTE TOTAL HT",
-        "GROSSISTE REMISE THEORIQUE",
-        "GROSSISTE REMISE OBTENUE",
-        "DIFFERENCE REMISE GROSSISTE",
-        "DIRECT 2,1% MONTANT HT",
-        "DIRECT 5,5% MONTANT HT",
-        "DIRECT 10% MONTANT HT",
-        "DIRECT 20% MONTANT HT",
-        "DIRECT NON GENERIQUES MONTANT HT",
-        "DIRECT TOTAL HT",
-        "DIRECT REMISE THEORIQUE",
-        "DIRECT REMISE OBTENUE",
-        "DIFFERENCE REMISE DIRECT",
-        "TOTAL GENERAL HT",
-    ]
-
-    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
-    tableau_generiques = mois_annees_tab_generiques(map_colonnes, fournisseur_generique)
-
-    # Récupérer les achats qui correspondent aux critères spécifiés
-    achats_labo = (
-        Achat.objects
-        .filter(
-            produit__fournisseur_generique=fournisseur_generique,
-            categorie__icontains="GENERIQUE",
-        )
-        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee', 'categorie', 'fournisseur')
-        .annotate(
-            total_ht_hors_remise=Sum('montant_ht_hors_remise'),
-            remise_theorique_totale=Sum('remise_theorique_totale'),
-            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
-        )
-    )
-
-    for entry in achats_labo:
-        mois_annee = f"{entry['mois']}/{entry['annee']}"
-        for ligne in tableau_generiques:
-            if ligne[0] == mois_annee:
-                if 'CERP' in entry['fournisseur']:
-                    if '2,1%' in entry['categorie']:
-                        ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '5,5%' in entry['categorie']:
-                        ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '10%' in entry['categorie']:
-                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '20%' in entry['categorie']:
-                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    
-                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
-
-                elif entry['fournisseur'] != "":
-                    if '2,1%' in entry['categorie']:
-                        ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '5,5%' in entry['categorie']:
-                        ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '10%' in entry['categorie']:
-                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '20%' in entry['categorie']:
-                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif 'NON GENERIQUE' in entry['categorie']:
-                        ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    
-                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
-
-    #print(tableau_generiques)
-
-    tableau_generiques = quicksort_tableau(tableau_generiques)
-
-    tableau_generiques = colonnes_totaux_generiques(tableau_generiques, map_colonnes)
-    tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes, map_colonnes)
-
-    return tableau_generiques, colonnes, achats_labo
-
-
-def mois_annees_tab_generiques(map_colonnes, fournisseur_generique):
-    tableau=[]
-    mois_annees = []
-
-    data_mois_annees = (
-        Achat.objects
-        .filter(categorie__startswith='GENERIQUE')
-        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee')
-    )
-
-    for entry in data_mois_annees:
-        mois_annee = f"{entry['mois']}/{entry['annee']}"
-        if mois_annee not in mois_annees:
-            mois_annees.append(mois_annee)
-
-    for ma in mois_annees:
-        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
-        tableau.append(nouvelle_ligne)
-
-    return tableau
-
-
-def colonnes_totaux_generiques(tableau, map_colonnes):
-
-    for ligne in range(len(tableau)):
-        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = tableau[ligne][map_colonnes["GROSSISTE 2,1% MONTANT HT"]]
-        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 5,5% MONTANT HT"]]
-        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
-        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] += tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
-
-        
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
-                                                                       - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
-                                                                    )
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
-                                                                       - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
-                                                                    )
-
-        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = tableau[ligne][map_colonnes["DIRECT 2,1% MONTANT HT"]]
-        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 5,5% MONTANT HT"]]
-        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
-        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] += tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
-
-        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
-        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] += tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
-
-    return tableau
-
-
-# -----------------------------------
-
-# -------- TABLEAU TEVA -------- 
-
-# -----------------------------------
-
-
-def mois_annees_tab_teva(map_colonnes):
-    tableau=[]
-    mois_annees = []
-
-    data_mois_annees = (
-        Achat.objects
-        .filter(
-            categorie__startswith='GENERIQUE',
-            produit__fournisseur_generique='TEVA',
-        )
-        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee')
-    )
-
-    for entry in data_mois_annees:
-        mois_annee = f"{entry['mois']}/{entry['annee']}"
-        if mois_annee not in mois_annees:
-            mois_annees.append(mois_annee)
-
-    for ma in mois_annees:
-        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
-        tableau.append(nouvelle_ligne)
-
-    return tableau
-
-
-def totaux_tableau_teva(tableau, map_colonnes):
-
-    for ligne in range(len(tableau)):
-        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = (
-            tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["GROSSISTE 40% MONTANT HT"]]
-        )
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (
-            tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
-            - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
-        )
-
-        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = (
-            tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]]
-            + tableau[ligne][map_colonnes["DIRECT 40% MONTANT HT"]]
-        )
-        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (
-            tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
-            - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
-        )
-
-        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = (
-            tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
-            + tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
-        )
-
-        tableau[ligne][map_colonnes["TOTAL REMISE THEORIQUE HT"]] = (
-            tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
-            + tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
-        )
-        tableau[ligne][map_colonnes["TOTAL REMISE OBTENUE HT"]] = (
-            tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]]
-            + tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
-        )
-
-        if tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] > Decimal(0):
-            tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] = round(
-                Decimal(tableau[ligne][map_colonnes["TOTAL REMISE THEORIQUE HT"]])
-                / Decimal(tableau[ligne][map_colonnes["TOTAL GENERAL HT"]])
-                * 100
-            , 2)
-            tableau[ligne][map_colonnes["% REMISE OBTENUE"]] = round(
-                Decimal(tableau[ligne][map_colonnes["TOTAL REMISE OBTENUE HT"]])
-                / Decimal(tableau[ligne][map_colonnes["TOTAL GENERAL HT"]])
-                * 100
-            , 2)
-        else:
-            tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] = "NA"
-            tableau[ligne][map_colonnes["% REMISE OBTENUE"]] = "NA"
-
-    return tableau
-
-
-def traitement_ratrappage_remises_teva(tableau, map_colonnes):
-
-    for ligne in range(len(tableau)):
-        if int(tableau[ligne][map_colonnes["Mois/Année"]][-4:]) <= 2023:
-            if tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] > Decimal(0):
-                tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
-                    (Decimal(37) - tableau[ligne][map_colonnes["% REMISE THEORIQUE"]]) / 100
-                    * tableau[ligne][map_colonnes["TOTAL GENERAL HT"]]
-                , 2)
-            if tableau[ligne][map_colonnes["% REMISE OBTENUE"]] > Decimal(0):
-                tableau[ligne][map_colonnes["RATTRAPAGE OBTENU"]] = round(
-                    (Decimal(37) - tableau[ligne][map_colonnes["% REMISE OBTENUE"]]) / 100
-                    * tableau[ligne][map_colonnes["TOTAL GENERAL HT"]]
-                , 2)
-        elif int(tableau[ligne][map_colonnes["Mois/Année"]][-4:]) >= 2024:
-            tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
-                (Decimal(0.17) - Decimal(0.025)) * (tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.1)) * (tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.2)) * (tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.3)) * (tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]])
-            , 2)
-            tableau[ligne][map_colonnes["RATTRAPAGE OBTENU"]] = "NA"
-
-    return tableau
-
-
-def generer_tableau_teva():
-    colonnes = [
-        "Mois/Année",
-        "GROSSISTE 2,5% MONTANT HT",
-        "GROSSISTE 10% MONTANT HT",
-        "GROSSISTE 20% MONTANT HT",
-        "GROSSISTE 30% MONTANT HT",
-        "GROSSISTE 40% MONTANT HT",
-        "GROSSISTE TOTAL HT",
-        "GROSSISTE REMISE THEORIQUE",
-        "GROSSISTE REMISE OBTENUE",
-        "DIFFERENCE REMISE GROSSISTE",
-        "DIRECT 2,5% MONTANT HT",
-        "DIRECT 10% MONTANT HT",
-        "DIRECT 20% MONTANT HT",
-        "DIRECT 30% MONTANT HT",
-        "DIRECT 40% MONTANT HT",
-        "DIRECT TOTAL HT",
-        "DIRECT REMISE THEORIQUE",
-        "DIRECT REMISE OBTENUE",
-        "DIFFERENCE REMISE DIRECT",
-        "TOTAL GENERAL HT",
-        "TOTAL REMISE THEORIQUE HT",
-        "% REMISE THEORIQUE",
-        "TOTAL REMISE OBTENUE HT",
-        "% REMISE OBTENUE",
-        "RATTRAPAGE THEORIQUE",
-        "RATTRAPAGE OBTENU",
-    ]
-
-    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
-    tableau_teva = mois_annees_tab_teva(map_colonnes)
-
-    # Récupérer les achats qui correspondent aux critères spécifiés
-    achats_labo = (
-        Achat.objects
-        .filter(
-            produit__fournisseur_generique='TEVA',
-            categorie__startswith='GENERIQUE',
-            categorie_remise__startswith='TEVA'
-        )
-        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .values('mois', 'annee', 'categorie_remise', 'fournisseur')
-        .annotate(
-            total_ht_hors_remise=Sum('montant_ht_hors_remise'),
-            remise_theorique_totale=Sum('remise_theorique_totale'),
-            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
-        )
-    )
-
-    for entry in achats_labo:
-        mois_annee = f"{entry['mois']}/{entry['annee']}"
-        for ligne in tableau_teva:
-            if ligne[0] == mois_annee:
-                if 'CERP' in entry['fournisseur']:
-                    if '2,5%' in entry['categorie_remise']:
-                        ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '10%' in entry['categorie_remise']:
-                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '20%' in entry['categorie_remise']:
-                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '30%' in entry['categorie_remise']:
-                        ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '40%' in entry['categorie_remise']:
-                        ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    
-                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
-
-                elif entry['fournisseur'] == "TEVA":
-                    if '2,5%' in entry['categorie_remise']:
-                        ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '10%' in entry['categorie_remise']:
-                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '20%' in entry['categorie_remise']:
-                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '30%' in entry['categorie_remise']:
-                        ligne[map_colonnes["DIRECT 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    elif '40%' in entry['categorie_remise']:
-                        ligne[map_colonnes["DIRECT 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
-                    
-                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
-                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
-
-    tableau_teva = quicksort_tableau(tableau_teva)
-    tableau_teva = totaux_tableau_teva(tableau_teva, map_colonnes)
-    tableau_teva = traitement_ratrappage_remises_teva(tableau_teva, map_colonnes)
-
-    #tableau_teva = colonnes_totaux_generiques(tableau_teva, map_colonnes)
-    tableau_teva = totaux_pourcentages_par_annee(tableau_teva, colonnes, map_colonnes)
-
-    return tableau_teva, colonnes
 
 
 # -----------------------------------
@@ -1621,3 +1276,589 @@ def generer_tableau_simplifie(mois_annee, data_dict):
 
     return tableau_simplifie, colonnes
 
+
+# -----------------------------------
+
+# -------- TABLEAU GENERIQUES ------- 
+
+# -----------------------------------
+
+
+def generer_tableau_generiques(fournisseur_generique):
+    
+    colonnes = [
+        "Mois/Année",
+        "GROSSISTE 2,1% MONTANT HT",
+        "GROSSISTE 5,5% MONTANT HT",
+        "GROSSISTE 10% MONTANT HT",
+        "GROSSISTE 20% MONTANT HT",
+        "GROSSISTE TOTAL HT",
+        "GROSSISTE REMISE THEORIQUE",
+        "GROSSISTE REMISE OBTENUE",
+        "DIFFERENCE REMISE GROSSISTE",
+        "DIRECT 2,1% MONTANT HT",
+        "DIRECT 5,5% MONTANT HT",
+        "DIRECT 10% MONTANT HT",
+        "DIRECT 20% MONTANT HT",
+        "DIRECT NON GENERIQUES MONTANT HT",
+        "DIRECT OTC OU NON REMBOURSES",
+        "DIRECT NON GENERIQUES + OTC OU NON RBS",
+        "DIRECT TOTAL HT (GENERIQUES)",
+        "DIRECT REMISE THEORIQUE",
+        "DIRECT REMISE OBTENUE",
+        "DIFFERENCE REMISE DIRECT",
+        "TOTAL GENERAL HT",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_generiques = mois_annees_tab_generiques(map_colonnes, fournisseur_generique)
+
+    # Récupérer les achats qui correspondent aux critères spécifiés
+    achats_labo = (
+        Achat.objects
+        .filter(
+            Q(produit__fournisseur_generique=fournisseur_generique) | Q(fournisseur=fournisseur_generique),
+            Q(categorie__icontains="GENERIQUE") | Q(categorie__icontains="OTC"),
+        )
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee', 'categorie', 'fournisseur')
+        .annotate(
+            total_ht_hors_remise=Sum('montant_ht_hors_remise'),
+            remise_theorique_totale=Sum('remise_theorique_totale'),
+            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
+        )
+    )
+
+    for entry in achats_labo:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_generiques:
+            if ligne[0] == mois_annee:
+                if 'CERP' in entry['fournisseur']:
+                    if '2,1%' in entry['categorie']:
+                        ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5,5%' in entry['categorie']:
+                        ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie']:
+                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie']:
+                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+                elif entry['fournisseur'] != "":
+                    if '2,1%' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,1% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5,5%' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 5,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif 'NON GENERIQUE' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif 'OTC' in entry['categorie']:
+                        ligne[map_colonnes["DIRECT OTC OU NON REMBOURSES"]] = Decimal(ligne[map_colonnes["DIRECT OTC OU NON REMBOURSES"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+    #print(tableau_generiques)
+
+    tableau_generiques = quicksort_tableau(tableau_generiques)
+
+    tableau_generiques = colonnes_totaux_generiques(tableau_generiques, map_colonnes)
+    tableau_generiques = totaux_pourcentages_par_annee(tableau_generiques, colonnes, map_colonnes)
+
+    return tableau_generiques, colonnes, achats_labo
+
+
+def mois_annees_tab_generiques(map_colonnes, fournisseur_generique):
+    tableau=[]
+    mois_annees = []
+
+    data_mois_annees = (
+        Achat.objects
+        .filter(categorie__startswith='GENERIQUE')
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def colonnes_totaux_generiques(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE 2,1% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 5,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+        )
+        
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
+            - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
+        )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (
+            tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+            - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
+        )
+        
+        tableau[ligne][map_colonnes["DIRECT NON GENERIQUES + OTC OU NON RBS"]] = (
+            tableau[ligne][map_colonnes["DIRECT NON GENERIQUES MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT OTC OU NON REMBOURSES"]]
+        )
+
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT (GENERIQUES)"]] = (
+            tableau[ligne][map_colonnes["DIRECT 2,1% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 5,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+        )
+
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
+            + tableau[ligne][map_colonnes["DIRECT TOTAL HT (GENERIQUES)"]]
+        )
+
+    return tableau
+
+
+# -----------------------------------
+
+# -------- TABLEAU TEVA -------- 
+
+# -----------------------------------
+
+
+def mois_annees_tab_teva(map_colonnes):
+    tableau=[]
+    mois_annees = []
+
+    data_mois_annees = (
+        Achat.objects
+        .filter(
+            categorie__startswith='GENERIQUE',
+            produit__fournisseur_generique='TEVA',
+        )
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def totaux_tableau_teva(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE 0% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 40% MONTANT HT"]]
+        )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
+            - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
+        )
+
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = (
+            tableau[ligne][map_colonnes["DIRECT 0% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 40% MONTANT HT"]]
+        )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (
+            tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+            - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
+        )
+
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
+            + tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
+        )
+
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 40% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 40% MONTANT HT"]]
+        )
+
+        if tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]] > Decimal(0):
+            tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] = round(
+                Decimal(tableau[ligne][map_colonnes["TOTAL REMISE THEORIQUE HT (HORS 0%)"]])
+                / Decimal(tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]])
+                * 100
+            , 2)
+            tableau[ligne][map_colonnes["% REMISE OBTENUE"]] = round(
+                Decimal(tableau[ligne][map_colonnes["TOTAL REMISE OBTENUE HT (HORS 0%)"]])
+                / Decimal(tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]])
+                * 100
+            , 2)
+        else:
+            tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] = "NA"
+            tableau[ligne][map_colonnes["% REMISE OBTENUE"]] = "NA"
+
+    return tableau
+
+
+def traitement_ratrappage_remises_teva(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        if int(tableau[ligne][map_colonnes["Mois/Année"]][-4:]) <= 2023:
+            if tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] > Decimal(0):
+                tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
+                    (Decimal(37) - tableau[ligne][map_colonnes["% REMISE THEORIQUE"]]) / 100
+                    * tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]]
+                , 2)
+            if tableau[ligne][map_colonnes["% REMISE OBTENUE"]] > Decimal(0):
+                tableau[ligne][map_colonnes["RATTRAPAGE OBTENU"]] = round(
+                    (Decimal(37) - tableau[ligne][map_colonnes["% REMISE OBTENUE"]]) / 100
+                    * tableau[ligne][map_colonnes["TOTAL GENERAL HT (HORS 0%)"]]
+                , 2)
+        elif int(tableau[ligne][map_colonnes["Mois/Année"]][-4:]) >= 2024:
+            tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
+                (Decimal(0.17) - Decimal(0.025)) * (tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]])
+                + (Decimal(0.4) - Decimal(0.1)) * (tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]])
+                + (Decimal(0.4) - Decimal(0.2)) * (tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]])
+                + (Decimal(0.4) - Decimal(0.3)) * (tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]])
+            , 2)
+            tableau[ligne][map_colonnes["RATTRAPAGE OBTENU"]] = "NA"
+
+    return tableau
+
+
+def generer_tableau_teva():
+    colonnes = [
+        "Mois/Année",
+        "GROSSISTE 0% MONTANT HT",
+        "GROSSISTE 2,5% MONTANT HT",
+        "GROSSISTE 10% MONTANT HT",
+        "GROSSISTE 20% MONTANT HT",
+        "GROSSISTE 30% MONTANT HT",
+        "GROSSISTE 40% MONTANT HT",
+        "GROSSISTE TOTAL HT",
+        "GROSSISTE REMISE THEORIQUE",
+        "GROSSISTE REMISE OBTENUE",
+        "DIFFERENCE REMISE GROSSISTE",
+        "DIRECT 0% MONTANT HT",
+        "DIRECT 2,5% MONTANT HT",
+        "DIRECT 10% MONTANT HT",
+        "DIRECT 20% MONTANT HT",
+        "DIRECT 30% MONTANT HT",
+        "DIRECT 40% MONTANT HT",
+        "DIRECT TOTAL HT",
+        "DIRECT REMISE THEORIQUE",
+        "DIRECT REMISE OBTENUE",
+        "DIFFERENCE REMISE DIRECT",
+        "TOTAL GENERAL HT",
+        "TOTAL GENERAL HT (HORS 0%)",
+        "TOTAL REMISE THEORIQUE HT (HORS 0%)",
+        "% REMISE THEORIQUE",
+        "TOTAL REMISE OBTENUE HT (HORS 0%)",
+        "% REMISE OBTENUE",
+        "RATTRAPAGE THEORIQUE",
+        "RATTRAPAGE OBTENU",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_teva = mois_annees_tab_teva(map_colonnes)
+
+    # Récupérer les achats qui correspondent aux critères spécifiés
+    achats_labo = (
+        Achat.objects
+        .filter(
+            produit__fournisseur_generique='TEVA',
+            categorie__startswith='GENERIQUE',
+            categorie_remise__startswith='TEVA'
+        )
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee', 'categorie_remise', 'fournisseur')
+        .annotate(
+            total_ht_hors_remise=Sum('montant_ht_hors_remise'),
+            remise_theorique_totale=Sum('remise_theorique_totale'),
+            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
+        )
+    )
+
+    for entry in achats_labo:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_teva:
+            if ligne[0] == mois_annee:
+                if 'CERP' in entry['fournisseur']:
+                    if ' 0%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 0% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 0% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '2,5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '30%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '40%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+                elif entry['fournisseur'] == "TEVA":
+                    if ' 0%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 0% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 0% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '2,5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '30%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '40%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+                if any(element in entry['categorie_remise'] for element in ['2,5%', '10%', '20%', '30%', '40%']):
+                    ligne[map_colonnes["TOTAL REMISE THEORIQUE HT (HORS 0%)"]] = Decimal(ligne[map_colonnes["TOTAL REMISE THEORIQUE HT (HORS 0%)"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["TOTAL REMISE OBTENUE HT (HORS 0%)"]] = Decimal(ligne[map_colonnes["TOTAL REMISE OBTENUE HT (HORS 0%)"]]) + round(entry['remise_obtenue'], 2)
+
+    tableau_teva = quicksort_tableau(tableau_teva)
+    tableau_teva = totaux_tableau_teva(tableau_teva, map_colonnes)
+    tableau_teva = traitement_ratrappage_remises_teva(tableau_teva, map_colonnes)
+
+    #tableau_teva = colonnes_totaux_generiques(tableau_teva, map_colonnes)
+    tableau_teva = totaux_pourcentages_par_annee(tableau_teva, colonnes, map_colonnes)
+
+    return tableau_teva, colonnes
+
+
+# -----------------------------------
+
+# -------- TABLEAU EG -------- 
+
+# -----------------------------------
+
+
+def mois_annees_tab_eg(map_colonnes):
+    tableau=[]
+    mois_annees = []
+
+    data_mois_annees = (
+        Achat.objects
+        .filter(
+            categorie__startswith='GENERIQUE',
+            produit__fournisseur_generique='EG',
+        )
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def totaux_tableau_eg(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE 0% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 15% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 40% MONTANT HT"]]
+        )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE GROSSISTE"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE REMISE OBTENUE"]] 
+            - tableau[ligne][map_colonnes["GROSSISTE REMISE THEORIQUE"]]
+        )
+
+        tableau[ligne][map_colonnes["DIRECT TOTAL HT"]] = (
+            tableau[ligne][map_colonnes["DIRECT 0% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 5% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 15% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 40% MONTANT HT"]]
+        )
+        tableau[ligne][map_colonnes["DIFFERENCE REMISE DIRECT"]] = (
+            tableau[ligne][map_colonnes["DIRECT REMISE OBTENUE"]]
+            - tableau[ligne][map_colonnes["DIRECT REMISE THEORIQUE"]]
+        )
+
+        tableau[ligne][map_colonnes["TOTAL GENERAL HT"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE TOTAL HT"]]
+            + tableau[ligne][map_colonnes["DIRECT TOTAL HT"]]
+        )
+
+        tableau[ligne][map_colonnes["TOTAL PRODUITS >20% REMISE"]] = (
+            tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["GROSSISTE 40% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]]
+            + tableau[ligne][map_colonnes["DIRECT 40% MONTANT HT"]]
+        )
+
+    return tableau
+
+
+def traitement_remises_supp_eg(tableau, map_colonnes):
+
+    for ligne in range(len(tableau)):
+        tableau[ligne][map_colonnes["4% SUPPLEMENTAIRES THEORIQUES"]] = round(
+            tableau[ligne][map_colonnes["TOTAL PRODUITS >20% REMISE"]] * Decimal(0.04)
+        , 2)
+
+    return tableau
+
+
+def generer_tableau_eg():
+    colonnes = [
+        "Mois/Année",
+        "GROSSISTE 0% MONTANT HT",
+        "GROSSISTE 2,5% MONTANT HT",
+        "GROSSISTE 5% MONTANT HT",
+        "GROSSISTE 10% MONTANT HT",
+        "GROSSISTE 15% MONTANT HT",
+        "GROSSISTE 20% MONTANT HT",
+        "GROSSISTE 30% MONTANT HT",
+        "GROSSISTE 40% MONTANT HT",
+        "GROSSISTE TOTAL HT",
+        "GROSSISTE REMISE THEORIQUE",
+        "GROSSISTE REMISE OBTENUE",
+        "DIFFERENCE REMISE GROSSISTE",
+        "DIRECT 0% MONTANT HT",
+        "DIRECT 2,5% MONTANT HT",
+        "DIRECT 5% MONTANT HT",
+        "DIRECT 10% MONTANT HT",
+        "DIRECT 15% MONTANT HT",
+        "DIRECT 20% MONTANT HT",
+        "DIRECT 30% MONTANT HT",
+        "DIRECT 40% MONTANT HT",
+        "DIRECT TOTAL HT",
+        "DIRECT REMISE THEORIQUE",
+        "DIRECT REMISE OBTENUE",
+        "DIFFERENCE REMISE DIRECT",
+        "TOTAL GENERAL HT",
+        "TOTAL PRODUITS >20% REMISE",
+        "4% SUPPLEMENTAIRES THEORIQUES"
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_eg = mois_annees_tab_eg(map_colonnes)
+
+    # Récupérer les achats qui correspondent aux critères spécifiés
+    achats_labo = (
+        Achat.objects
+        .filter(
+            produit__fournisseur_generique='EG',
+            categorie__startswith='GENERIQUE',
+            categorie_remise__startswith='EG'
+        )
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee', 'categorie_remise', 'fournisseur')
+        .annotate(
+            total_ht_hors_remise=Sum('montant_ht_hors_remise'),
+            remise_theorique_totale=Sum('remise_theorique_totale'),
+            remise_obtenue=Sum(ExpressionWrapper(F('remise_pourcent') * F('montant_ht_hors_remise'), output_field=fields.DecimalField()))
+        )
+    )
+
+    for entry in achats_labo:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_eg:
+            if ligne[0] == mois_annee:
+                if 'CERP' in entry['fournisseur']:
+                    if ' 0%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 0% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 0% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '2,5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 5% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '15%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 15% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 15% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '30%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '40%' in entry['categorie_remise']:
+                        ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["GROSSISTE 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["GROSSISTE REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+                elif entry['fournisseur'] == "EG":
+                    if ' 0%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 0% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 0% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '2,5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 2,5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '5%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 5% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 5% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '10%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 10% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 10% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '15%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 15% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 15% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '20%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 20% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 20% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '30%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 30% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 30% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    elif '40%' in entry['categorie_remise']:
+                        ligne[map_colonnes["DIRECT 40% MONTANT HT"]] = Decimal(ligne[map_colonnes["DIRECT 40% MONTANT HT"]]) + round(entry['total_ht_hors_remise'], 2)
+                    
+                    ligne[map_colonnes["DIRECT REMISE THEORIQUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE THEORIQUE"]]) + round(entry['remise_theorique_totale'], 2)
+                    ligne[map_colonnes["DIRECT REMISE OBTENUE"]] = Decimal(ligne[map_colonnes["DIRECT REMISE OBTENUE"]]) + round(entry['remise_obtenue'], 2)
+
+    tableau_eg = quicksort_tableau(tableau_eg)
+    tableau_eg = totaux_tableau_eg(tableau_eg, map_colonnes)
+    tableau_eg = traitement_remises_supp_eg(tableau_eg, map_colonnes)
+
+    tableau_eg = totaux_pourcentages_par_annee(tableau_eg, colonnes, map_colonnes)
+
+    return tableau_eg, colonnes

@@ -274,6 +274,45 @@ class Command(BaseCommand):
         df.to_excel(excel_file_path, index=False)
 
 
+    def extraire_achats():
+        from AppMichelet.settings import BASE_DIR
+        import pandas as pd
+        import os
+        from django.db.models import F
+
+        excel_file_path = os.path.join(BASE_DIR, f'extractions/Tous_achats_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
+
+        data = Achat.objects.values(
+                'code',
+                'designation',
+                'nb_boites',
+                'prix_unitaire_ht',
+                'prix_unitaire_remise_ht',
+                'remise_pourcent',
+                'montant_ht_hors_remise',
+                'montant_ht',
+                'produit__remise_grossiste',
+                'produit__remise_direct',
+                'remise_theorique_totale',
+                'tva',
+                'date',
+                'numero_facture',
+                'fournisseur',
+                'categorie',
+                'categorie_remise',
+                'produit__annee',
+                'produit__fournisseur_generique',
+                'produit__coalia',
+                'produit__pharmupp',
+                'produit__lpp',
+                'produit__creation_auto',
+        )
+
+        df = pd.DataFrame.from_records(data)
+
+        df.to_excel(excel_file_path, index=False)
+
+
     def extraire_catalogue():
         from AppMichelet.settings import BASE_DIR
         import pandas as pd
@@ -355,25 +394,24 @@ class Command(BaseCommand):
         print(remises_2)
 
 
-    def categoriser_remises_teva():
+    def categoriser_remises_teva_eg():
         from .utils import get_categorie_remise
 
         confirmation = input("Voulez-vous vraiment exécuter cette opération ? (y/n): ").lower()
         if not confirmation:
             return "Script non exécuté"
         
-        achats = (
-            Achat.objects
-            .filter(
-                produit__fournisseur_generique = "TEVA"
-            )
-        )
+        achats = Achat.objects.all()
 
         for achat in achats:
+            prev_cat_remise = achat.categorie_remise
             produit = Produit_catalogue.objects.get(code=achat.code, annee=achat.date.year)
-            achat.categorie_remise = get_categorie_remise(produit.fournisseur_generique, achat.fournisseur, achat.remise_pourcent)
-            achat.save()
-            print(f"Catégorie remise attribuée au produit {produit.code} - {produit.fournisseur_generique} => {achat.categorie_remise}")
+            new_cat_remise = get_categorie_remise(produit.fournisseur_generique, achat.fournisseur, achat.remise_pourcent)
+
+            if new_cat_remise != prev_cat_remise:
+                achat.categorie_remise = new_cat_remise
+                achat.save()
+                print(f"Catégorie remise attribuée au produit {produit.code} - {produit.fournisseur_generique} - {produit.annee} // {prev_cat_remise }=> {achat.categorie_remise}")
 
         print("Succès")
 
