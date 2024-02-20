@@ -61,35 +61,32 @@ def import_factures_auto():
 
 def completer_fournisseur_generique_et_type_job():
     from .utils import determiner_fournisseur_generique, determiner_type
+    from .constants import NON_GENERIQUES, NON_REMBOURSABLES_ET_OTC
 
     try:
         produits = Produit_catalogue.objects.all()
         compteur = 0
 
         for produit in produits:
-            type_change = ""
             new_fournisseur_generique = determiner_fournisseur_generique(produit.designation)
 
-            if new_fournisseur_generique != "":
+            if new_fournisseur_generique != produit.fournisseur_generique:
                 prev_fournisseur = produit.fournisseur_generique
                 produit.fournisseur_generique = new_fournisseur_generique
-                if produit.type == "":
-                    produit.type = "GENERIQUE"
-                    type_change = f'Le produit a été typé comme générique'
+                
+                if prev_fournisseur != new_fournisseur_generique:
+                    compteur += 1
+                    print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
+
+           
+            new_type = determiner_type(produit.designation)
+
+            if new_type != produit.type:
+                prev_type = produit.type
+                produit.type = new_type
                 produit.save()
-                if prev_fournisseur != new_fournisseur_generique or type_change != "":
-                    compteur += 1
-                    print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique} // {type_change}')
-
-            if produit.type == "":
-                new_type = determiner_type(produit.designation)
-
-                if new_type != "":
-                    prev_type = produit.type
-                    produit.type = new_type
-                    produit.save()
-                    compteur += 1
-                    print(f'type modifié pour le produit {produit.code} {produit.designation} : {prev_type} => {produit.type}')
+                compteur += 1
+                print(f'type modifié pour le produit {produit.code} {produit.designation} : {prev_type} => {produit.type}')
 
         logger.error(f"Succès de la complétion du fournisseur générique et du type. {compteur} modifications effectuées")
 

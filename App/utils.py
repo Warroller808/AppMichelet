@@ -630,20 +630,24 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
 
 
 def determiner_type(designation):
-    from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES
+    from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES, NON_GENERIQUES, NON_REMBOURSABLES_ET_OTC
 
     new_type = ""
 
     if any(element in designation.upper() for element in MARCHES_PRODUITS):
         new_type = "MARCHE PRODUITS"
     elif any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
-        new_type = "GENERIQUE"
+        if (
+            not any(element in designation.upper() for element in NON_GENERIQUES)
+            and not any(element in designation.upper() for element in NON_REMBOURSABLES_ET_OTC)
+            ):
+            new_type = "GENERIQUE"
     
     return new_type
 
 
 def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp, lpp):
-    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES, NON_REMBOURSSABLES_ET_OTC
+    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES, NON_REMBOURSABLES_ET_OTC
     
     new_categorie = ""
     
@@ -693,7 +697,7 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         elif "TEVA" in fournisseur or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
             if any(element in designation.upper() for element in NON_GENERIQUES):
                 new_categorie = "NON GENERIQUE DIRECT LABO"
-            elif any(element in designation.upper() for element in NON_REMBOURSSABLES_ET_OTC):
+            elif any(element in designation.upper() for element in NON_REMBOURSABLES_ET_OTC):
                 new_categorie = "OTC OU NON REMBOURSABLE"
             elif generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
                 if (tva > 0.0209 and tva < 0.0211):
