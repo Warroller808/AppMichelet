@@ -56,6 +56,9 @@ def import_factures_auto():
     logger.error("Calcul des remises...")
     calcul_remises_job()
 
+    logger.error("Calcul des pourcentages de remise absents...")
+    calcul_remise_pourcent_si_absente_job()
+
     logger.error("Traitement quotidien terminé.")
 
 
@@ -139,6 +142,33 @@ def calcul_remises_job():
             if achat.remise_theorique_totale != prev_remise:
                 compteur += 1
                 print(f'remise théorique modifiée pour l\'achat {achat.produit} {achat.date} : {prev_remise} => {achat.remise_theorique_totale}')
+
+        logger.error(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")
+
+    except Exception as e:
+        logger.error(f"Echec du calcul des remises théoriques : {e}")
+
+
+def calcul_remise_pourcent_si_absente_job():
+    from decimal import Decimal
+    
+    try:
+        achats = Achat.objects.all()
+        prev_pourcentage = 0
+        compteur = 0
+
+        for achat in achats:
+
+            if (achat.remise_pourcent > -0.0001 and achat.remise_pourcent < 0.0001) and achat.prix_unitaire_remise_ht > 0.1 and achat.prix_unitaire_ht > 0.1:
+                
+                new_remise_pourcent = round(Decimal(1) - (Decimal(achat.prix_unitaire_remise_ht) / Decimal(achat.prix_unitaire_ht)), 4)
+                
+                if new_remise_pourcent > 0.01:
+                    prev_pourcentage = Decimal(achat.remise_pourcent)
+                    achat.remise_pourcent = round(Decimal(1) - (Decimal(achat.prix_unitaire_remise_ht) / Decimal(achat.prix_unitaire_ht)), 4)
+                    achat.save()
+                    compteur += 1
+                    print(f'pourcentage de remise modifié pour l\'achat {achat.produit} {achat.date} {achat.fournisseur} : {prev_pourcentage} => {achat.remise_pourcent}')
 
         logger.error(f"Succès du calcul des remises théoriques. {compteur} modifications effectuées")
 
