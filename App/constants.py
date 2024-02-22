@@ -31,9 +31,19 @@ LABORATOIRES_GENERIQUES = [
 
 
 NON_GENERIQUES = [
+    #TEVA
+    "AIROMIR",
+    "AJOVY",
+    "DELURSAN",
+    "FURADANTINE",
+    "LONQUEX",
+    "PARALYOC",
+    "MODIODAL",
+    "LOPERAMIDE",
+    "QVAR",
+    "TRANSULOSE",
     "SPASFON",
     "VOGALENE",
-    "VOGALIB",
     "BETADINE",
     "TAREG ",
     " TAREG",
@@ -50,6 +60,23 @@ NON_GENERIQUES = [
     "BROCHOKOD",
     "MITOSYL",
     "FLEXITOL"
+]
+
+
+NON_REMBOURSABLES = [
+    #TEVA
+    "ATOVAQUONE",
+    "PIRACETAM",
+    "FINASTERIDE",
+    "SILDENAFIL",
+    "TADALAFIL",
+    "GESTODENE",
+    "DONEPEZIL",
+    "GALANTAMINE",
+    "MEMANTINE",
+
+    "Sildénafil",
+    "Finastéride",
 ]
 
 
@@ -86,22 +113,30 @@ PRODUITS_LPP = [
 ]
 
 
-NON_REMBOURSABLES_ET_OTC = [
+OTC = [
     #TEVA
-    "ATOVAQUONE",
-    "PIRACETAM",
-    "FINASTERIDE",
-    "SILDENAFIL",
-    "TADALAFIL",
-    "GESTODENE",
-    "DONEPEZIL",
-    "GALANTAMINE",
-    "MEMANTINE",
+    "ACETYLCYSTEINE",
+    "ACICLOVIR",
+    "AMBROXOL",
+    "CARBOCISTEINE",
+    "CETIRIZINE",
+    "CHLORHEXIDINE",
+    "DICLOFENAC",
+    "DOXYLAMINE",
+    "EAU DE MER TEVA",
+    "HEXETIDINE",
+    "IBUPROFENE",
+    "LOPERAMIDE",
+    "LORATADINE",
+    "OMEPRAZOLE",
+    "PANTOPRAZOLE",
+    "PARACETAMOL",
+    "DIASTROLIB",
+    "MONASENS",
+    "VOGALIB",
 
     #EG
-    "Sildénafil",
     "ACICLOVIR",
-    "Finastéride",
     "AMBROXOL",
     "AMOROLFINE",
     "BISACODYL",

@@ -68,10 +68,11 @@ def telecharger_achats(request):
             )
         
         categories = [str(element['categorie']) for element in data_categories]
+        categories = ["Tous"] + categories
         categorie_selectionnee = request.POST.get('categorie', '')
 
         if not categorie_selectionnee and categories:
-            categorie_selectionnee = ">450€ tva 2,1%"
+            categorie_selectionnee = "Tous"
 
         data_annees = (
                 Achat.objects
@@ -107,6 +108,11 @@ def telecharger_achats(request):
     
     if request.method == 'POST':
 
+        filtre_categorie = Q()
+
+        if categorie_selectionnee != "Tous":
+            filtre_categorie = Q(categorie=categorie_selectionnee)
+
         filtre_annee = Q()
 
         if annee_selectionnee != "Tous":
@@ -121,9 +127,9 @@ def telecharger_achats(request):
             Achat.objects
             .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
             .filter(
+                filtre_categorie,
                 filtre_annee,
                 filtre_mois,
-                categorie=categorie_selectionnee
             )
             .values(
                 'code',

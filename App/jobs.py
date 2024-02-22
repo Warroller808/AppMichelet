@@ -64,7 +64,6 @@ def import_factures_auto():
 
 def completer_fournisseur_generique_et_type_job():
     from .utils import determiner_fournisseur_generique, determiner_type
-    from .constants import NON_GENERIQUES, NON_REMBOURSABLES_ET_OTC
 
     try:
         produits = Produit_catalogue.objects.all()
