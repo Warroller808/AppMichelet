@@ -599,13 +599,13 @@ def extraire_produits(format, fournisseur, tables_page):
 def determiner_fournisseur_generique(designation, fournisseur=None):
     from .constants import LABORATOIRES_GENERIQUES
 
-    new_fournisseur_generique = ""
+    new_fournisseur_generique = None
 
     if fournisseur is not None:
         if fournisseur == "TEVA" or fournisseur == "EG" or fournisseur == "BIOGARAN"  or fournisseur == "ARROW" :
             new_fournisseur_generique = fournisseur
     
-    if new_fournisseur_generique == "":
+    if new_fournisseur_generique is None:
         if any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
             for element in LABORATOIRES_GENERIQUES:
                 if element in designation.upper():
@@ -632,16 +632,14 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
 def determiner_type(designation):
     from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES, NON_GENERIQUES, NON_REMBOURSABLES, OTC
 
-    new_type = ""
+    new_type = None
 
     if any(element in designation.upper() for element in MARCHES_PRODUITS):
         new_type = "MARCHE PRODUITS"
     elif any(element in designation.upper() for element in LABORATOIRES_GENERIQUES):
-        if (
-            not any(element in designation.upper() for element in NON_GENERIQUES)
-            and not any(element in designation.upper() for element in NON_REMBOURSABLES)
-            and not any(element in designation.upper() for element in OTC)
-            ):
+        if any(element in designation.upper() for element in NON_GENERIQUES):
+            new_type = ""
+        else:
             new_type = "GENERIQUE"
     
     return new_type
@@ -660,7 +658,13 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
         elif "CERP" in fournisseur:
             if "MAGASIN GENERAL" in fournisseur:
                 new_categorie = "MAGASIN GENERAL"
-            elif (generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES)) and not any(element in designation.upper() for element in NON_GENERIQUES):
+            elif any(element in designation.upper() for element in NON_GENERIQUES):
+                new_categorie = "NON GENERIQUE GROSSISTE"
+            elif any(element in designation.upper() for element in NON_REMBOURSABLES):
+                new_categorie = "NON REMBOURSABLE GROSSISTE"
+            elif any(element in designation.upper() for element in OTC):
+                new_categorie = "OTC GROSSISTE"
+            elif (generique or any(element in designation.upper() for element in LABORATOIRES_GENERIQUES)):
                 if (tva > 0.0209 and tva < 0.0211):
                     new_categorie = "GENERIQUE 2,1%"
                 elif (tva > 0.0549 and tva < 0.0551):

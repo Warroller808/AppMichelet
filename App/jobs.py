@@ -72,18 +72,16 @@ def completer_fournisseur_generique_et_type_job():
         for produit in produits:
             new_fournisseur_generique = determiner_fournisseur_generique(produit.designation)
 
-            if new_fournisseur_generique != "" and new_fournisseur_generique != produit.fournisseur_generique:
+            if new_fournisseur_generique is not None and new_fournisseur_generique != produit.fournisseur_generique:
                 prev_fournisseur = produit.fournisseur_generique
                 produit.fournisseur_generique = new_fournisseur_generique
-                
-                if prev_fournisseur != new_fournisseur_generique:
-                    compteur += 1
-                    print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
+                produit.save()
+                compteur += 1
+                print(f'fournisseur modifié pour le produit {produit.code} {produit.designation} : {prev_fournisseur} => {produit.fournisseur_generique}')
 
-           
             new_type = determiner_type(produit.designation)
 
-            if new_type != "" and new_type != produit.type:
+            if new_type is not None and new_type != produit.type:
                 prev_type = produit.type
                 produit.type = new_type
                 produit.save()

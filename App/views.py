@@ -210,8 +210,12 @@ def telecharger_produits_tableau_simplifie(request):
 
         mois_annee = request.GET.get('date')
 
-        mois = mois_annee.split('/')[0]
-        annee = mois_annee.split('/')[1]
+        if len(mois_annee) > 4:
+            filtre_mois = Q(mois=mois_annee.split('/')[0])
+            filtre_annee = Q(annee=mois_annee.split('/')[1])
+        else:
+            filtre_mois = Q()
+            filtre_annee = Q(annee=mois_annee)
 
         #Q(categorie__startswith='GENERIQUE') | Q(categorie__icontains='MARCHE PRODUITS') | Q(categorie__icontains='UPP') | Q(categorie__icontains='COALIA') | Q(categorie__icontains='PHARMAT'),
 
@@ -220,8 +224,8 @@ def telecharger_produits_tableau_simplifie(request):
             .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
             .filter(
                 Q(fournisseur__icontains='CERP') | Q(fournisseur__icontains='PHARMAT'),
-                mois=mois,
-                annee=annee,
+                filtre_mois,
+                filtre_annee,
             )
             .values(
                 'code',
@@ -438,15 +442,19 @@ def tableau_simplifie(request):
     dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
     dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
 
-    data_dict = data_dict_tab_simplifie()
+    data_dict, annees = data_dict_tab_simplifie()
 
     mois_annees = list(data_dict.keys())
+    mois_annees = annees + mois_annees
     mois_annee_selectionne = request.GET.get('mois_annee', '')
 
     if not mois_annee_selectionne and mois_annees:
         mois_annee_selectionne = "10/2023"
 
-    tableau_simplifie, colonnes = generer_tableau_simplifie(mois_annee_selectionne, data_dict)
+    if len(mois_annee_selectionne) > 4:
+        tableau_simplifie, colonnes = generer_tableau_simplifie(mois_annee_selectionne, data_dict)
+    else:
+        tableau_simplifie, colonnes = generer_tableau_simplifie(mois_annee_selectionne, data_dict_tab_simplifie_full_year(mois_annee_selectionne))
 
     context = {
         'mois_annees': mois_annees,
