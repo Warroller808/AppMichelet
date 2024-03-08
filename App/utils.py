@@ -2,7 +2,7 @@ import os
 import re
 import logging
 import traceback
-from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva
+from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
 import json
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -32,7 +32,7 @@ def extraire_format_fournisseur(texte):
         return format_resultat, fournisseur_resultat
     except AttributeError:
         #print("Aucun format trouvé.")
-        return None
+        return None, None
 
 
 def extraire_date(format, texte):
@@ -530,6 +530,72 @@ def process_ratrappage_teva(format, tables_page, texte_page, numero, date):
     return success
 
 
+def process_releve_alliance(texte_page, numero, date):
+    success = True
+
+    texte_page = texte_page.replace("\n", " ").strip()
+
+    try:
+
+        releve_alliance, created = Releve_alliance.objects.get_or_create(numero = numero, date = date)
+
+        if created:
+            releve_alliance.net_a_payer = Decimal(0)
+            releve_alliance.montant_grossiste = Decimal(0)
+            releve_alliance.montant_short_list = Decimal(0)
+        
+        regex = r'Net\s*à\s*payer\s*\|*I*l*\s*(-*\d{1,5},\d{1,2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.net_a_payer = float(match.group(1).replace(",","."))
+
+        regex = r'EN REGLEMENT DU PRESENT RELEVE NOUS AVONS ETABLI\s*UNE\s*LCR\s*DE\s*EUROS\s*(-*\d{1,5},\d{1,2})\s*A\s*ECHEANCE\s*DU\s*\d{1,2}\.\d{2}\.\d{2}'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.montant_grossiste = float(match.group(1).replace(",","."))
+
+        regex = r'EN REGLEMENT DU PRESENT RELEVE NOUS AVONS ETABLI\s*UNE\s*LCR\s*DE\s*EUROS\s*-*\d{1,5},\d{1,2}\s*A\s*ECHEANCE\s*DU\s*(\d{1,2}\.\d{2}\.\d{2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.echeance_grossiste = datetime.strptime(match.group(1), "%d.%m.%y")
+
+        regex = r'ET\s*UNE\s*LCR\s*DE\s*EUROS\s*(-*\d{1,5},\d{1,2})\s*A\s*ECHEANCE\s*DU\s*\d{1,2}\.\d{2}\.\d{2}'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.montant_short_list = float(match.group(1).replace(",","."))
+
+        regex = r'ET\s*UNE\s*LCR\s*DE\s*EUROS\s*-*\d{1,5},\d{1,2}\s*A\s*ECHEANCE\s*DU\s*(\d{1,2}\.\d{2}\.\d{2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.echeance_short_list = datetime.strptime(match.group(1), "%d.%m.%y")
+
+        regex = r'Total avantages commerciaux (-*\d{1,5},\d{1,2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.avantages_commerciaux = float(match.group(1).replace(",","."))
+
+        regex = r'Total frais généraux (-*\d{1,5},\d{1,2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.frais_generaux = float(match.group(1).replace(",","."))
+
+        regex = r'Facturation services - récapitulatif du mois.*Total (-*\d{1,5},\d{1,2})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_alliance.facturation_services = float(match.group(1).replace(",","."))
+
+        releve_alliance.save()
+
+        if not releve_alliance.net_a_payer > Decimal(0) and (releve_alliance.montant_grossiste > Decimal(0) or releve_alliance.montant_short_list > Decimal(0)):
+            releve_alliance.net_a_payer = releve_alliance.montant_grossiste + releve_alliance.montant_short_list
+
+    except Exception as e:
+        logger.error(f"Erreur de traitement du relevé Alliance {numero} émis le {date} : {e}")
+        success = False
+
+    return success
+
+
 def choix_remise_grossiste(produit: Produit_catalogue, categorie, nb_boites):
     remise = 0
 
@@ -804,7 +870,7 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
                 nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(remise), 4)
         elif "CERP" in nouvel_achat.fournisseur and (
             nouvel_achat.categorie.split()[0].upper() == "GENERIQUE"
-            or "DIRECT LABO" in nouvel_achat.categorie
+            or "GROSSISTE" in nouvel_achat.categorie
         ):
             #GENERIQUE CERP
             if produit.remise_grossiste:

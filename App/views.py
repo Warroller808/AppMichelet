@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from django.core.files.storage import default_storage
 from .methods import *
 import pandas as pd
-from .models import Produit_catalogue, Constante
+from .models import Produit_catalogue, Constante, Releve_alliance
 from datetime import datetime
 import logging
 from .tasks import async_import_factures_depuis_dossier
@@ -160,7 +160,7 @@ def telecharger_achats(request):
 
         if len(data) > 0:
             try:
-                excel_file = telecharger_achats_excel(data)
+                excel_file = telecharger_excel(data, "Achat")
                 date_actuelle = datetime.now().strftime("%d-%m-%Y")
                 filename = f"{date_actuelle}_achats.xlsx"
 
@@ -255,7 +255,7 @@ def telecharger_produits_tableau_simplifie(request):
         )
 
         try:
-            excel_file = telecharger_achats_excel(data)
+            excel_file = telecharger_excel(data, "Achat")
             date_actuelle = datetime.now().strftime("%d-%m-%Y")
             filename = f"{date_actuelle}_achats_{mois_annee}.xlsx"
 
@@ -268,8 +268,44 @@ def telecharger_produits_tableau_simplifie(request):
 
         except Exception as e:
             logger.error(f'Erreur lors du traitement du fichier excel (tableau simplifié): {e}')
-        
 
+
+@login_required
+def telecharger_releves_alliance(request):
+
+    if request.method == 'GET':
+
+        data = (
+            Releve_alliance.objects
+            .values(
+                'numero',
+                'date',
+                'net_a_payer',
+                'montant_grossiste',
+                'echeance_grossiste',
+                'montant_short_list',
+                'echeance_short_list',
+                'avantages_commerciaux',
+                'frais_generaux',
+                'facturation_services'
+            )
+        )
+
+        try:
+            excel_file = telecharger_excel(data, "Releve_alliance")
+            date_actuelle = datetime.now().strftime("%d-%m-%Y")
+            filename = f"{date_actuelle}_relevés_alliance.xlsx"
+
+            response = HttpResponse(excel_file, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename={filename}'
+
+            default_storage.delete(filename)
+
+            return response
+
+        except Exception as e:
+            logger.error(f'Erreur lors du traitement du fichier excel (tableau Alliance): {e}')
+        
 
 @staff_member_required
 def upload_catalogue_excel(request):
@@ -537,6 +573,26 @@ def tableau_eg(request):
 
     return render(request, 'index_tableau_eg.html', {
         'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi
+    })
+
+
+@login_required
+def tableau_alliance(request):
+
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    if request.method == 'POST':
+
+        tableau_alliance, colonnes = generer_tableau_alliance()
+
+        return render(request, 'index_tableau_alliance.html', {
+            'tableau_alliance': tableau_alliance,
+            'colonnes': colonnes,
+            'dernier_import_digi' : dernier_import_digi
+        })
+
+    return render(request, 'index_tableau_alliance.html', {
         'dernier_import_digi' : dernier_import_digi
     })
 

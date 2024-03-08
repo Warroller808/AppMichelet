@@ -1,5 +1,6 @@
 import os
 import pdfplumber
+import pytesseract
 import logging
 import traceback
 from datetime import datetime
@@ -12,7 +13,7 @@ from openpyxl import Workbook
 from decimal import Decimal
 from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
 from .utils import *
-from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva
+from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
 
 
 BASE_DIR = settings.BASE_DIR
@@ -62,6 +63,7 @@ def process_factures(facture_paths):
         for index, (facture_path, facture_name) in enumerate(facture_paths, start=1):
 
             logger.error(f'Traitement du fichier {index}/{len(facture_paths)}')
+            print(f'Traitement du fichier {index}/{len(facture_paths)}')
 
             #Extraction des infos
             table_donnees, table_produits, events_facture, texte_page, tables_page, tables_page_2 = extract_data(facture_path, facture_name)
@@ -92,6 +94,7 @@ def extract_data(facture_path, facture_name):
         texte_page_tout = []
         tables_page_toutes = []
         events = []
+        text_from_img = ""
 
         for num_page in range(len(pdf.pages)):
             page = pdf.pages[num_page]
@@ -102,15 +105,41 @@ def extract_data(facture_path, facture_name):
             texte_page = page.extract_text()
             tables_page = []
             tables_page_2 = page.extract_tables()
-
+                
             #print(texte_page)
 
             try:
+                texte_page_tout.append(texte_page)
+                tables_page_toutes.append(tables_page)
+
                 format, fournisseur = extraire_format_fournisseur(texte_page)
-                format_inst = Format_facture.objects.get(pk=format)
-                
+
+                if format is not None:
+                    format_inst = Format_facture.objects.get(pk=format)
+                else:
+                    if "ALLIANCE" in facture_name.upper() and texte_page != "":
+                        pdf_img = page.to_image(resolution=600)
+                        texte_page = pytesseract.image_to_string(pdf_img.original)
+                        texte_page_tout.append("VERSION TESSERACT" + texte_page)
+                        format, fournisseur = extraire_format_fournisseur(texte_page)
+                        if format is not None:
+                            format_inst = Format_facture.objects.get(pk=format)
+                        else:
+                            events.append(f'Format de facture ALLIANCE non reconnu, page {num_page + 1} - {facture_name}')
+                            continue
+                    elif texte_page == "":
+                        events.append(f'Page vide, page {num_page + 1} - {facture_name}')
+                        continue
+                    else:
+                        events.append(f'Format de facture non reconnu, page {num_page + 1} - {facture_name}')
+                        continue
+
+            except Exception as e:
+                logger.error(f'Erreur de récupération du format. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
+
+            try:
                 if format_inst.regex_date == "NA":
-                    events.append(f'Facture ignorée, page {num_page + 1}')
+                    events.append(f'Facture ignorée, page {num_page + 1} - {facture_name}')
                     continue
                 tables_page = page.extract_tables(table_settings=format_inst.table_settings)
 
@@ -131,12 +160,11 @@ def extract_data(facture_path, facture_name):
                 tables_page_toutes.append(tables_page)
 
             except:
-                events.append(f'Format de facture non reconnu, page {num_page + 1}')
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
                 continue
 
-            if "AVOIR REMISES CERP" not in format and format != "RATRAPPAGE TEVA":
+            if "AVOIR REMISES CERP" not in format and format != "RATRAPPAGE TEVA" and format != "RELEVE ALLIANCE":
                 # On vérifie si la facture a déjà été traitée, si oui on prévient
                 if not Achat.objects.filter(numero_facture=numero_facture):
                     processed_table, events_achats = process_tables(format, tables_page)
@@ -182,7 +210,7 @@ def extract_data(facture_path, facture_name):
                             events.append(f'L\'avoir de remises page 2 {facture_name} - {mois_concerne}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
                     except Exception as e:
                         events.append(f'L\'avoir de remises concerné par la page 2 {facture_name} - {mois_concerne}, page {num_page +1} n\'a pas pu être importé : {e}')
-                else:
+                elif format == "RATRAPPAGE TEVA":
                     events.append(f'Avoir de ratrappage teva {facture_name} - {numero_facture}, détecté, non traité car valeurs saisies manuellement (voir avec administrateur)')
                     continue
                     if not Avoir_ratrappage_teva.objects.filter(numero=numero_facture):
@@ -194,7 +222,22 @@ def extract_data(facture_path, facture_name):
                             events.append(f'L\'avoir de ratrappage teva {facture_name} - {numero_facture}, page {num_page +1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
                     else:
                         events.append(f'L\'avoir de ratrappage teva {facture_name} - {numero_facture}, page {num_page +1} a déjà été traité par le passé, il n\'a donc pas été traité à nouveau')
-            
+                elif format == "RELEVE ALLIANCE":
+                    #events.append(f'Relevé Alliance {facture_name} - {numero_facture} - {date}, détecté, non traité (voir avec administrateur)')
+                    created = not Releve_alliance.objects.filter(numero=numero_facture).exists()
+                    success = process_releve_alliance(texte_page, numero_facture, date)
+
+                    if success:
+                        if created:
+                            events.append(f'Le relevé Alliance {facture_name} - {numero_facture}, page {num_page + 1} a été ajouté')
+                        else:
+                            events.append(f'Le relevé Alliance {facture_name} - {numero_facture}, page {num_page + 1} a été édité')
+                    else:
+                        events.append(f'Le relevé Alliance {facture_name} - {numero_facture}, page {num_page + 1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
+                else:
+                    events.append(f'Format reconnu pour {facture_name} - {numero_facture} - {date}: {format}, mais non traité (voir avec administrateur)')
+                    continue
+
     return table_donnees, table_produits, events, texte_page_tout, tables_page_toutes, tables_page_2
 
 
@@ -346,7 +389,7 @@ def save_data(table_donnees):
     return events
 
 
-def telecharger_achats_excel(data):
+def telecharger_excel(data, modele):
 
     try:
         workbook = Workbook()
@@ -354,36 +397,52 @@ def telecharger_achats_excel(data):
 
         champs = data[0].keys()
 
-        sheet.append(
-            [
-                'Code',
-                'Designation',
-                'Nb de boites',
-                'Prix unitaire ht',
-                'Prix unitaire remisé',
-                'Remise en pourcents',
-                'Montant ht avant remise',
-                'Montant ht après remise',
-                'Remise grossiste présente dans le catalogue',
-                'Remise direct présente dans le catalogue',
-                'Remise théorique calculée',
-                'TVA',
-                'Date de la facture',
-                'Numero facture',
-                'Format de la facture',
-                'Categorie',
-                'Categorie de remise si applicable (TEVA, EG)',
-                'Année associée au produit dans le catalogue',
-                'Fournisseur générique',
-                'Vendu par Coalia',
-                'Présent sur Pharmupp',
-                'Indiqué LPP sur le site CERP',
-                'Créé automatiquement par l\'outil'
-            ]
-        )
+        if modele == "Achat":
+            sheet.append(
+                [
+                    'Code',
+                    'Designation',
+                    'Nb de boites',
+                    'Prix unitaire ht',
+                    'Prix unitaire remisé',
+                    'Remise en pourcents',
+                    'Montant ht avant remise',
+                    'Montant ht après remise',
+                    'Remise grossiste présente dans le catalogue',
+                    'Remise direct présente dans le catalogue',
+                    'Remise théorique calculée',
+                    'TVA',
+                    'Date de la facture',
+                    'Numero facture',
+                    'Format de la facture',
+                    'Categorie',
+                    'Categorie de remise si applicable (TEVA, EG)',
+                    'Année associée au produit dans le catalogue',
+                    'Fournisseur générique',
+                    'Vendu par Coalia',
+                    'Présent sur Pharmupp',
+                    'Indiqué LPP sur le site CERP',
+                    'Créé automatiquement par l\'outil'
+                ]
+            )
+        elif modele == "Releve_alliance":
+            sheet.append(
+                [
+                    'numero',
+                    'date',
+                    'net_a_payer',
+                    'montant_grossiste',
+                    'echeance_grossiste',
+                    'montant_short_list',
+                    'echeance_short_list',
+                    'avantages_commerciaux',
+                    'frais_generaux',
+                    'facturation_services'
+                ]
+            )
 
-        for achat in data:
-            sheet.append([achat[champ] for champ in champs])
+        for instance in data:
+            sheet.append([instance[champ] for champ in champs])
 
         from io import BytesIO
         excel_file = BytesIO()
@@ -393,7 +452,7 @@ def telecharger_achats_excel(data):
         return excel_file
 
     except Exception as e:
-        logger.error(f'Erreur de génération du fichier Excel : {e}')
+        logger.error(f'Erreur de génération du fichier Excel {modele} : {e}')
         return None
 
 
@@ -2031,3 +2090,77 @@ def generer_tableau_eg():
     tableau_eg = totaux_pourcentages_par_annee(tableau_eg, colonnes, map_colonnes)
 
     return tableau_eg, colonnes
+
+
+# -----------------------------------
+
+# -------- TABLEAU ALLIANCE -------- 
+
+# -----------------------------------
+
+
+def mois_annees_tab_alliance(map_colonnes):
+    tableau=[]
+    mois_annees = []
+
+    data_mois_annees = (
+        Releve_alliance.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def generer_tableau_alliance():
+    colonnes = [
+        "Mois/Année",
+        "Net à payer",
+        "Montant grossiste",
+        "Montant short list",
+        "Avantages commerciaux",
+        "Frais generaux",
+        "Facturation services",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_alliance = mois_annees_tab_alliance(map_colonnes)
+
+    releves = (
+        Releve_alliance.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .values('mois', 'annee')
+        .annotate(
+            net_a_payer=Sum('net_a_payer'),
+            montant_grossiste=Sum('montant_grossiste'),
+            montant_short_list=Sum('montant_short_list'),
+            avantages_commerciaux=Sum('avantages_commerciaux'),
+            frais_generaux=Sum('frais_generaux'),
+            facturation_services=Sum('facturation_services'),
+        )
+    )
+
+    for entry in releves:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_alliance:
+            if ligne[0] == mois_annee:
+                ligne[map_colonnes["Net à payer"]] = round(entry['net_a_payer'], 2)
+                ligne[map_colonnes["Montant grossiste"]] = round(entry['montant_grossiste'], 2)
+                ligne[map_colonnes["Montant short list"]] = round(entry['montant_short_list'], 2)
+                ligne[map_colonnes["Avantages commerciaux"]] = round(entry['avantages_commerciaux'], 2)
+                ligne[map_colonnes["Frais generaux"]] = round(entry['frais_generaux'], 2)
+                ligne[map_colonnes["Facturation services"]] = round(entry['facturation_services'], 2)
+
+    tableau_alliance = quicksort_tableau(tableau_alliance)
+    tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
+
+    return tableau_alliance, colonnes

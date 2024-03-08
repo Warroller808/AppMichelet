@@ -14,30 +14,27 @@
     {% include 'navbar.html' %}
 
     <div class="content">
-        <h1>Tableau grossiste</h1>
+        <h1>Tableau ALLIANCE</h1>
 
         <h5>
-            Dernier import CERP SAE : {{ dernier_import_cerp }} <br>
             Dernier import Digipharmacie : {{ dernier_import_digi }}
         </h5>
 
-        <form method="get" action="\tableau_grossiste\">
-            <label for="annee">Sélectionnez une année :</label>
-            <select name="annee" id="annee">
-                {% for an in annees %}
-                    <option value="{{ an }}" {% if an == annee_selectionnee %}selected{% endif %}>{{ an }}</option>
-                {% endfor %}
-            </select>
-            <input type="submit" value="Filtrer">
+        <form method="post" action="\tableau_alliance\">
+            {% csrf_token %}
+            <button type="submit">Afficher le tableau</button>
         </form>
 
-        {% if tableau_grossiste %}
+        <form method="get" action="\telecharger_releves_alliance\">
+            <button type="submit">Télécharger la liste des relevés disponibles</button>
+        </form>
+
+        {% if tableau_alliance %}
 
             <h6>
-                CA &#x3C; 450€ 3,8%	= (CA des produits &#x3C; 450€, LPP 5,5 ou 10%, et parapharmacie) moins 9%
             </h6>
-
-            <table id='tableau_grossiste' border="1">
+            
+            <table id='tableau_alliance' border="1">
                 <thead>
                 <tr>
                     {% for categorie in colonnes %}
@@ -46,8 +43,8 @@
                 </tr>
                 </thead>
                 <tbody>
-                {% for ligne in tableau_grossiste %}
-                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or ligne.0|slice:":10" == 'DIFFERENCE' or not ligne.0 %} class="totaux" {% endif %}
+                {% for ligne in tableau_alliance %}
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
                         {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
@@ -60,6 +57,8 @@
             </table>
         {% endif %}
 
+        <br><br>
     </div>
+
 </body>
 </html>

@@ -45,7 +45,26 @@ class Achat(models.Model):
 
     def __str__(self):
         return f"{self.code} {self.designation} {self.date} {self.fournisseur} - {self.categorie}"
+
+
+class Releve_alliance(models.Model):
+    numero = models.CharField("NUMERO", max_length=128)
+    date = models.DateField("DATE", blank=False)
+    net_a_payer = models.DecimalField("NET A PAYER", max_digits=15, decimal_places=4, default=0.00)
+    montant_grossiste = models.DecimalField("MONTANT GROSSISTE", max_digits=15, decimal_places=4, default=0.00)
+    echeance_grossiste = models.DateField("ECHEANCE GROSSISTE", blank=True, null = True)
+    montant_short_list = models.DecimalField("MONTANT SHORT LIST", max_digits=15, decimal_places=4, default=0.00)
+    echeance_short_list = models.DateField("ECHEANCE SHORT LIST", blank=True, null = True)
+    avantages_commerciaux = models.DecimalField("AVANTAGES COMMERCIAUX", max_digits=15, decimal_places=4, default=0.00)
+    frais_generaux = models.DecimalField("FRAIS GENERAUX", max_digits=15, decimal_places=4, default=0.00)
+    facturation_services = models.DecimalField("FACTURATION SERVICES", max_digits=15, decimal_places=4, default=0.00)
+
+    def __str__(self):
+        return f"{self.numero} {self.date}"
     
+    class Meta:
+        unique_together = ('numero', 'date')
+
 
 class Avoir_remises(models.Model):
     numero = models.CharField("NUMERO", max_length=128, primary_key=True)

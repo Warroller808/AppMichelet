@@ -10,21 +10,7 @@
     <title>Application contrôle remises - Pharmacie Michelet</title>
 </head>
 <body>
-    <div class="navbar">
-        <a href="\">Importer des factures</a>
-        <a href="\tableau_synthese\">Tableau Synthèse</a>
-        <a href="\tableau_grossiste\">Tableau Grossiste</a>
-        <a href="\tableau_simplifie\">Tableau Simplifié</a>
-        <a href="\tableau_generiques\">Tableau Génériques</a>
-        <a href="\tableau_teva\">Tableau TEVA</a>
-        <a href="\tableau_eg\">Tableau EG</a>
-        <a href="\upload_catalogue_excel\">Importer un catalogue produit</a>
-        <a href="\telecharger_achats\">Télécharger une liste d'achats</a>
-
-        {% if user.is_authenticated %}
-            <a href="{% url 'App:logout' %}?next={{ request.path }}">Se déconnecter</a>
-        {% endif %}
-    </div>
+    {% include 'navbar.html' %}
 
     <div class="content">
         <h1>Tableau synthèse</h1>
