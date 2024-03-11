@@ -294,7 +294,7 @@ def telecharger_releves_alliance(request):
         try:
             excel_file = telecharger_excel(data, "Releve_alliance")
             date_actuelle = datetime.now().strftime("%d-%m-%Y")
-            filename = f"{date_actuelle}_relevés_alliance.xlsx"
+            filename = f"{date_actuelle}_releves_alliance.xlsx"
 
             response = HttpResponse(excel_file, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
             response['Content-Disposition'] = f'attachment; filename={filename}'

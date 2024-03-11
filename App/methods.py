@@ -2106,6 +2106,7 @@ def mois_annees_tab_alliance(map_colonnes):
     data_mois_annees = (
         Releve_alliance.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(annee__gte = 2022)
         .values('mois', 'annee')
     )
 
@@ -2138,6 +2139,7 @@ def generer_tableau_alliance():
     releves = (
         Releve_alliance.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(annee__gte = 2022)
         .values('mois', 'annee')
         .annotate(
             net_a_payer=Sum('net_a_payer'),
