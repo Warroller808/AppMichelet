@@ -167,28 +167,28 @@ def main_digi():
 
         logger.error(f'Digipharmacie date range : {start_date} - {end_date}')
 
-        time.sleep(1)
+        time.sleep(2)
 
         filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
         filtre.click()
 
-        time.sleep(1)
+        time.sleep(2)
 
-        fournisseurs = driver.find_element(By.XPATH, '//div[text()="Fournisseur"]')
+        fournisseurs = driver.find_element(By.XPATH, "//div[@role='tooltip']//div//div[text()='Fournisseur']")
         driver.execute_script("arguments[0].click();", fournisseurs)
 
-        time.sleep(1)
+        time.sleep(2)
 
         logger.error(f'Début boucle sur les fournisseurs')
 
         for i in range(len(LISTE_FOURNISSEURS)):
             logger.error(f"Traitement du fournisseur {LISTE_FOURNISSEURS[i]}")
 
-            input_fournisseurs = driver.find_element(By.ID, 'providers-filled')
+            input_fournisseurs = driver.find_element(By.XPATH, "//input[@id='providers-filled']")
             input_fournisseurs.send_keys(LISTE_FOURNISSEURS[i])
             time.sleep(1)
             popper = driver.find_element(By.CSS_SELECTOR, 'div.MuiAutocomplete-popper')
-            labo_trouve = popper.find_element(By.XPATH, f"//li//div[div[text()='{LISTE_FOURNISSEURS[i]}']]")
+            labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_FOURNISSEURS[i]}']]")
             time.sleep(1)
             driver.execute_script("arguments[0].click();", labo_trouve)
             time.sleep(1)
@@ -251,24 +251,24 @@ def main_digi():
             end_date = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
             input_end_date.send_keys(end_date)
 
-            time.sleep(1)
+            time.sleep(2)
 
             filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
             filtre.click()
 
-            time.sleep(1)
+            time.sleep(2)
 
-            laboratoire = driver.find_element(By.XPATH, '//div[text()="Laboratoire"]')
+            laboratoire = driver.find_element(By.XPATH, "//div[@role='tooltip']//div//div[text()='Laboratoire']")
             driver.execute_script("arguments[0].click();", laboratoire)
 
-            time.sleep(1)
+            time.sleep(2)
 
-            input_laboratoires = driver.find_element(By.ID, 'providers-filled')
-            time.sleep(1)
+            input_laboratoires = driver.find_element(By.XPATH, "//input[@id='providers-filled']")
+            time.sleep(2)
             input_laboratoires.send_keys(LISTE_LABORATOIRES[i])
             time.sleep(1)
             popper = driver.find_element(By.CSS_SELECTOR, 'div.MuiAutocomplete-popper')
-            labo_trouve = popper.find_element(By.XPATH, f"//li//div[div[text()='{LISTE_LABORATOIRES[i]}']]")
+            labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_LABORATOIRES[i]}']]")
             time.sleep(1)
             driver.execute_script("arguments[0].click();", labo_trouve)
             time.sleep(1)
