@@ -30,14 +30,20 @@
             <h6>Montants HT = montants avant remise, avoirs déduits<br>
                 Remise assiette globale théorique = Assiette globale -9% x 2,5%<br>
                 Remise assiette globale obtenue 2,5% = ligne spécialités pharmaceutiques des avoirs de remises<br>
-                Total remise grossiste théorique = Assiette globale -9% x 2,5% + Parapharmacie x 3,8% + LPP x 3,8% + Nb boites >450€ x 15€ + Avantage commercial<br>
                 Avantage commercial = Assiette globale -9% x (3,8% - 2,5%)<br>
                 Différences de remises = remise obtenue - remise théorique<br>
-                Sous total remise grossiste théorique = somme (assiette globale + LPP + parapharmacie) x 3,8% théorique<br>
-                Sous total remise grossiste obtenue = somme (assiette globale + LPP + parapharmacie) x 3,8% obtenue<br>
+                Sous total remise grossiste théorique = somme (assiette globale + LPP + parapharmacie) x 3,8% théorique (inclut avantage commercial)<br>
+                Sous total remise grossiste obtenue = somme (assiette globale + LPP + parapharmacie) x 3,8% obtenue (inclut avantage commercial)<br>
                 Différence sous total remise grossiste = sous total remise grossiste obtenue - sous total remise grossiste théorique<br>
+                Total remise grossiste théorique = Assiette globale -9% x 2,5% + Parapharmacie x 3,8% + LPP x 3,8% + Nb boites >450€ x 15€ + Avantage commercial<br>
                 Total remise grossiste obtenue = somme des remises obtenues : remise spécialités pharmaceutiques (assiette globale) + remise LPP + remise parapharmacie + avantage commercial + remise >450€<br>
             </h6>
+
+            <div class="column-controls" id="column-controls">
+                {% for categorie in categories_assiette_globale %}
+                    <label><input type="checkbox" class="column-toggle" data-column-index="{{ forloop.counter0 }}" checked> {{ categorie }}</label>
+                {% endfor %}
+            </div>
             
             <table border="1">
                 <thead>
@@ -97,5 +103,42 @@
         {% endif %}
 
     </div>
+
+    <script>
+        // JavaScript pour gérer le masquage des colonnes
+        document.addEventListener("DOMContentLoaded", function() {
+            // Récupérer tous les éléments de case à cocher avec la classe "column-toggle"
+            var columnToggles = document.querySelectorAll(".column-toggle");
+
+            // Ajouter des écouteurs d'événements à chaque case à cocher
+            columnToggles.forEach(function(toggle) {
+                toggle.addEventListener("change", function() {
+                    // Récupérer l'index de la colonne à masquer ou à afficher
+                    var columnIndex = parseInt(toggle.getAttribute("data-column-index"));
+
+                    // Sélectionner toutes les cellules de la colonne avec l'index donné
+                    var headerCells = document.querySelectorAll("table th:nth-child(" + (columnIndex + 1) + ")");
+                    var cells = document.querySelectorAll("table tr td:nth-child(" + (columnIndex + 1) + ")");
+
+                    // Changer la visibilité des cellules en fonction de l'état de la case à cocher
+                    headerCells.forEach(function(headerCell) {
+                        if (toggle.checked) {
+                            headerCell.classList.remove("hidden-column");
+                        } else {
+                            headerCell.classList.add("hidden-column");
+                        }
+                    });
+
+                    cells.forEach(function(cell) {
+                        if (toggle.checked) {
+                            cell.classList.remove("hidden-column");
+                        } else {
+                            cell.classList.add("hidden-column");
+                        }
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 </html>

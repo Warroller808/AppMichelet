@@ -478,17 +478,22 @@ def generer_tableau_synthese():
         'DIFFERENCE REMISE ASSIETTE GLOBALE',
         'NB BOITES >450€',
         'REMISE THEORIQUE >450€',
-        'PARAPHARMACIE TOTAL HT',
-        'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
-        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
-        'REMISE GROSSISTE TOTALE THEORIQUE',
-        'REMISE LPP 5,5 OU 10% OBTENUE',
-        'REMISE LPP 20% OBTENUE',
-        'REMISE PARAPHARMACIE OBTENUE',
-        'REMISE AVANTAGE COMMERCIAL OBTENUE',
         'REMISE >450€ OBTENUE',
+        'PARAPHARMACIE TOTAL HT',
+        'REMISE PARAPHARMACIE THEORIQUE',
+        'REMISE PARAPHARMACIE OBTENUE',
+        'LPP 5,5 OU 10% TOTAL HT',
+        'REMISE LPP 5,5 OU 10% THEORIQUE',
+        'REMISE LPP 5,5 OU 10% OBTENUE',
+        'LPP 20% TOTAL HT',
+        'REMISE LPP 20% THEORIQUE',
+        'REMISE LPP 20% OBTENUE',
+        'REMISE AVANTAGE COMMERCIAL THEORIQUE',
+        'REMISE AVANTAGE COMMERCIAL OBTENUE',
+        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
         'SOUS TOTAL REMISE GROSSISTE OBTENUE',
         'DIFFERENCE SOUS TOTAL REMISE GROSSISTE',
+        'REMISE GROSSISTE TOTALE THEORIQUE',
         'REMISE GROSSISTE TOTALE OBTENUE',
         'DIFFERENCE REMISE GROSSISTE',
     ]
@@ -526,20 +531,25 @@ def generer_tableau_synthese():
         'REMISE ASSIETTE GLOBALE OBTENUE 2,5%',
         'DIFFERENCE REMISE ASSIETTE GLOBALE',
         'NB BOITES > 450€',
-        'REMISE THEORIQUE > 450€ : 15€/BTE',
-        'PARAPHARMACIE TOTAL HT',
-        'LPP 5,5 OU 10% TOTAL HT', 'LPP 20% TOTAL HT',
-        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
-        'TOTAL REMISE GROSSISTE THEORIQUE',
-        'REMISE LPP 5,5 OU 10% OBTENUE',
-        'REMISE LPP 20% OBTENUE',
-        'REMISE PARAPHARMACIE OBTENUE',
-        'REMISE AVANTAGE COMMERCIAL OBTENUE',
+        'REMISE > 450€ THEORIQUE: 15€/BTE',
         'REMISE >450€ OBTENUE',
+        'PARAPHARMACIE TOTAL HT',
+        'REMISE PARAPHARMACIE THEORIQUE',
+        'REMISE PARAPHARMACIE OBTENUE',
+        'LPP 5,5 OU 10% TOTAL HT',
+        'REMISE LPP 5,5 OU 10% THEORIQUE',
+        'REMISE LPP 5,5 OU 10% OBTENUE',
+        'LPP 20% TOTAL HT',
+        'REMISE LPP 20% THEORIQUE',
+        'REMISE LPP 20% OBTENUE',
+        'AVANTAGE COMMERCIAL THEORIQUE',
+        'AVANTAGE COMMERCIAL OBTENU',
+        'SOUS TOTAL REMISE GROSSISTE THEORIQUE',
         'SOUS TOTAL REMISE GROSSISTE OBTENUE',
         'DIFFERENCE SOUS TOTAL REMISE GROSSISTE',
+        'TOTAL REMISE GROSSISTE THEORIQUE',
         'TOTAL REMISE GROSSISTE OBTENUE',
-        'DIFFERENCE REMISE GROSSISTE',
+        'DIFFERENCE TOTAL REMISE GROSSISTE',
     ]
 
     explications = {
@@ -677,30 +687,22 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob):
             tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.025), 2)
             tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]] = round(Decimal(tableau[ligne][map_assglob["NB BOITES >450€"]]) * Decimal(15), 2)
 
-            if Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) > Decimal(0):
-                remise_parapharmacie = Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038)
-            else:
-                remise_parapharmacie = Decimal(0)
-
-            if Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) > Decimal(0):
-                remise_lpp_cinq_ou_dix = Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) * Decimal(0.038)
-            else:
-                remise_lpp_cinq_ou_dix = Decimal(0)
-
-            if Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) > Decimal(0):
-                remise_lpp_vingt = Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * Decimal(0.038)
-            else:
-                remise_lpp_vingt = Decimal(0)
+            tableau[ligne][map_assglob["REMISE PARAPHARMACIE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["REMISE LPP 20% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * Decimal(0.038), 2)
+            tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.013), 2)
 
             sous_total = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.038), 2)
-            sous_total += round(Decimal(remise_parapharmacie), 2)
-            sous_total += round(Decimal(remise_lpp_cinq_ou_dix) + Decimal(remise_lpp_vingt), 2)
+            sous_total += Decimal(tableau[ligne][map_assglob["REMISE PARAPHARMACIE THEORIQUE"]])
+            sous_total += Decimal(tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% THEORIQUE"]])
+            sous_total += Decimal(tableau[ligne][map_assglob["REMISE LPP 20% THEORIQUE"]])
             tableau[ligne][map_assglob["SOUS TOTAL REMISE GROSSISTE THEORIQUE"]] = sous_total
             
             remise_totale = round(Decimal(tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]]), 2)
             remise_totale += round(Decimal(tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]]), 2)
-            remise_totale += round(Decimal(remise_parapharmacie), 2)
-            remise_totale += round(Decimal(remise_lpp_cinq_ou_dix) + Decimal(remise_lpp_vingt), 2)
+            remise_totale += Decimal(tableau[ligne][map_assglob["REMISE PARAPHARMACIE THEORIQUE"]])
+            remise_totale += Decimal(tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% THEORIQUE"]])
+            remise_totale += Decimal(tableau[ligne][map_assglob["REMISE LPP 20% THEORIQUE"]])
             remise_totale += round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * Decimal(0.013), 2)
             tableau[ligne][map_assglob["REMISE GROSSISTE TOTALE THEORIQUE"]] = remise_totale
 
@@ -2125,12 +2127,12 @@ def mois_annees_tab_alliance(map_colonnes):
 def generer_tableau_alliance():
     colonnes = [
         "Mois/Année",
-        "Net à payer",
         "Montant grossiste",
         "Montant short list",
         "Avantages commerciaux",
         "Frais generaux",
         "Facturation services",
+        "Net à payer",
     ]
 
     map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
