@@ -41,7 +41,9 @@
 
             <div class="column-controls" id="column-controls">
                 {% for categorie in categories_assiette_globale %}
-                    <label><input type="checkbox" class="column-toggle" data-column-index="{{ forloop.counter0 }}" checked> {{ categorie }}</label>
+                    <div class="checkbox-container">
+                        <label><input type="checkbox" class="column-toggle" data-column-index="{{ forloop.counter0 }}" checked>{{ categorie }}</label>
+                    </div>
                 {% endfor %}
             </div>
             

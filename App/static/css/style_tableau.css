@@ -51,19 +51,25 @@ a:hover {
 
 .column-controls {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 5px;
-    margin-bottom: 10px;
+	grid-auto-flow: column;
+	grid-gap: 1px;
+	grid-template-columns: repeat(3, 1fr); 
+	grid-template-rows: repeat(9, auto);
+    margin-bottom: 20px;
 }
 
-@media (min-width: 600px) {
+@media (max-width: 900px) {
     .column-controls {
         grid-template-columns: repeat(2, 1fr);
     }
 }
 
-@media (min-width: 900px) {
+@media (max-width: 600px) {
     .column-controls {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: 1fr;
     }
+}
+
+.checkbox-container label {
+    text-wrap: nowrap;
 }
