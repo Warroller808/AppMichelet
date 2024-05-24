@@ -73,3 +73,7 @@ a:hover {
 .checkbox-container label {
     text-wrap: nowrap;
 }
+
+.column-controls-buttons {
+    margin-bottom: 20px;
+}

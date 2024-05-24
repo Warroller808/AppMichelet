@@ -46,7 +46,12 @@
                     </div>
                 {% endfor %}
             </div>
-            
+
+            <div class="column-controls-buttons">
+                <button onclick="checkAll()">Tout cocher</button>
+                <button onclick="uncheckAll()">Tout décocher</button>
+            </div>
+
             <table border="1">
                 <thead>
                     <tr>
@@ -141,6 +146,22 @@
                 });
             });
         });
+
+        function checkAll() {
+            document.querySelectorAll(".column-toggle").forEach(function(toggle) {
+                toggle.checked = true;
+                toggle.dispatchEvent(new Event('change'));
+            });
+        }
+
+        function uncheckAll() {
+            document.querySelectorAll(".column-toggle").forEach(function(toggle) {
+                if (parseInt(toggle.getAttribute("data-column-index")) !== 0) {
+                    toggle.checked = false;
+                    toggle.dispatchEvent(new Event('change'));
+                }
+            });
+        }
     </script>
 </body>
 </html>

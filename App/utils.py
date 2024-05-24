@@ -836,6 +836,28 @@ def get_categorie_remise(fournisseur_generique, fournisseur, remise_pourcent):
     return new_categorie_remise
 
 
+def get_taux_avantage_commercial(mois_annee, total_cerp):
+    mois_annee_date = datetime.strptime(mois_annee, "%m/%Y").replace(day=1)
+    taux_de_base = Decimal(0.025)
+
+    #lpp spécial car 0 (pas de taux de base) si CA insuffisant
+
+    if mois_annee_date < datetime(2024, 3, 1):
+        taux_avantage = Decimal(0.013)
+        taux_lpp = taux_de_base + Decimal(0.013)
+    else:
+        if total_cerp < Decimal(60000):
+            taux_avantage = Decimal(0.011)
+            taux_lpp = Decimal(0)
+        elif total_cerp < Decimal(70000):
+            taux_avantage = Decimal(0.013)
+            taux_lpp = taux_de_base + taux_avantage
+        else:
+            taux_avantage = Decimal(0.015)
+            taux_lpp = taux_de_base + taux_avantage
+
+    return taux_de_base, taux_avantage, taux_lpp
+
 def check_last_year(code, new_fournisseur_generique, new_type):
     new_lpp = ""
     new_remise_grossiste = ""

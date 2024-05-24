@@ -51,6 +51,13 @@ def export_factures(driver, first_date, last_date):
 
         time.sleep(1)
 
+        tags_input = driver.find_element(By.XPATH, '//input[@id="tags-filled"]')
+        tags_input.send_keys("exporté app")
+        time.sleep(1)
+        tags_input.send_keys(Keys.ENTER)
+
+        time.sleep(1)
+
         prev_files_list = os.listdir(DL_FOLDER_PATH_AUTO)
         boite_dialogue = driver.find_element(By.XPATH, '//div[@role="dialog" and @aria-describedby="alert-dialog-slide-description"]')
 
@@ -83,7 +90,7 @@ def export_factures(driver, first_date, last_date):
 def main_digi():
 
     LAST_IMPORT_DATE = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE")
-    LISTE_FOURNISSEURS = ["Teva", "Arrow"]
+    LISTE_FOURNISSEURS = ["Teva", "Arrow", "All"]
     LISTE_LABORATOIRES = ["Biogaran", "Eg labo"]
 
     success_fournisseurs = False
@@ -188,7 +195,10 @@ def main_digi():
             input_fournisseurs.send_keys(LISTE_FOURNISSEURS[i])
             time.sleep(1)
             popper = driver.find_element(By.CSS_SELECTOR, 'div.MuiAutocomplete-popper')
-            labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_FOURNISSEURS[i]}']]")
+            if LISTE_FOURNISSEURS[i] != "All":
+                labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_FOURNISSEURS[i]}']]")
+            else:
+                labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='Alliance']]")
             time.sleep(1)
             driver.execute_script("arguments[0].click();", labo_trouve)
             time.sleep(1)

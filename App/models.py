@@ -485,3 +485,8 @@ class Command(BaseCommand):
         df = pd.DataFrame.from_records(achats)
 
         df.to_excel(excel_file_path, index=False)
+
+
+    def test_import_selenium():
+        from .jobs import import_factures_auto
+        return import_factures_auto()
