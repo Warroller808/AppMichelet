@@ -283,7 +283,6 @@ class Command(BaseCommand):
         from AppMichelet.settings import BASE_DIR
         import pandas as pd
         import os
-        from django.db.models import F
 
         excel_file_path = os.path.join(BASE_DIR, f'extractions/Tous_achats_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
 
@@ -322,7 +321,6 @@ class Command(BaseCommand):
         from AppMichelet.settings import BASE_DIR
         import pandas as pd
         import os
-        from django.db.models import F
 
         excel_file_path = os.path.join(BASE_DIR, f'extractions/Catalogue_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
 

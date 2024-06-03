@@ -4,16 +4,18 @@ import pytesseract
 import logging
 import traceback
 from datetime import datetime
-from django.http import HttpResponse
-from django.db import models
 from django.conf import settings
-from django.db.models import Sum, F, Q, ExpressionWrapper, fields, Subquery
-from django.db.models.functions import ExtractMonth, ExtractYear, Cast, Concat
+from django.db.models import Sum, F, Q, ExpressionWrapper, fields
+from django.db.models.functions import ExtractMonth, ExtractYear
 from openpyxl import Workbook
 from decimal import Decimal
+from datetime import timedelta
 from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
-from .utils import *
-from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
+from .utils import extraire_format_fournisseur, extraire_date, extraire_numero_facture, extraire_produits
+from .utils import process_avoir_remises, process_avoir_remises_deuxieme_page, process_ratrappage_teva, process_releve_alliance, process_tables
+from .utils import categoriser_achat, determiner_fournisseur_generique, get_categorie_remise, calculer_remise_theorique, get_taux_avantage_commercial
+from .utils import get_data_from_dict, quicksort_dict, quicksort_liste, quicksort_tableau, convert_date
+from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance, Format_facture
 
 
 BASE_DIR = settings.BASE_DIR
@@ -94,7 +96,6 @@ def extract_data(facture_path, facture_name):
         texte_page_tout = []
         tables_page_toutes = []
         events = []
-        text_from_img = ""
 
         for num_page in range(len(pdf.pages)):
             page = pdf.pages[num_page]
@@ -135,7 +136,7 @@ def extract_data(facture_path, facture_name):
                         continue
 
             except Exception as e:
-                logger.error(f'Erreur de récupération du format. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
+                logger.error(f'Erreur de récupération du format. Format de facture : {format} - fichier : {facture_name}, page : {num_page}. Erreur: {e}')
 
             try:
                 if format_inst.regex_date == "NA":
@@ -159,7 +160,7 @@ def extract_data(facture_path, facture_name):
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
 
-            except:
+            except:  # noqa: E722
                 texte_page_tout.append(texte_page)
                 tables_page_toutes.append(tables_page)
                 continue
@@ -290,7 +291,7 @@ def save_data(table_donnees):
             except Exception as e:
                 logger.error(f"Erreur lors de l'importation des données du produit existant : {e}. Traceback : {traceback.format_exc()}")
 
-        except:
+        except:  # noqa: E722
             coalia = (dictligne["fournisseur"] == "CERP COALIA")
             generique = (dictligne["fournisseur"] == "TEVA" or dictligne["fournisseur"] == "EG" or dictligne["fournisseur"] == "BIOGARAN"  or dictligne["fournisseur"] == "ARROW")
             marche_produits = False
@@ -353,7 +354,7 @@ def save_data(table_donnees):
                 produit.fournisseur_generique = new_fournisseur_generique
                 produit.save()
                 logger.error(f"Fournisseur générique {dictligne['code']} {dictligne['date'].year} complété : {new_fournisseur_generique}. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
-            if produit.lpp == False and any(element in dictligne["designation"].upper() for element in PRODUITS_LPP):
+            if not produit.lpp and any(element in dictligne["designation"].upper() for element in PRODUITS_LPP):
                 produit.lpp = True
                 produit.save()
                 logger.error(f"Produit existant {dictligne['code']} {dictligne['date'].year} passé en lpp. Facture {dictligne['fichier_provenance']} - {dictligne['numero_facture']}.")
@@ -458,7 +459,14 @@ def telecharger_excel(data, modele):
 
 # -----------------------------------
 
-# -------- TABLEAUX -------- 
+# -------- TABLEAUX -----------------
+
+# -----------------------------------
+
+
+# -----------------------------------
+
+# -------- TABLEAU SYNTHESE CERP ----
 
 # -----------------------------------
 
@@ -695,9 +703,9 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob, data_dict_total_c
             tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * taux_de_base, 2)
             tableau[ligne][map_assglob["REMISE THEORIQUE >450€"]] = round(Decimal(tableau[ligne][map_assglob["NB BOITES >450€"]]) * Decimal(15), 2)
 
-            tableau[ligne][map_assglob["REMISE PARAPHARMACIE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * (taux_de_base + taux_avantage), 2)
-            tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) * (taux_lpp), 2)
-            tableau[ligne][map_assglob["REMISE LPP 20% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * (taux_lpp), 2)
+            tableau[ligne][map_assglob["REMISE PARAPHARMACIE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["PARAPHARMACIE TOTAL HT"]]) * Decimal(0.91) * (taux_de_base + taux_avantage), 2)
+            tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 5,5 OU 10% TOTAL HT"]]) * Decimal(0.91) * (taux_lpp), 2)
+            tableau[ligne][map_assglob["REMISE LPP 20% THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["LPP 20% TOTAL HT"]]) * Decimal(0.91) * (taux_lpp), 2)
             tableau[ligne][map_assglob["REMISE AVANTAGE COMMERCIAL THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * taux_avantage, 2)
 
             sous_total = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * (taux_de_base + taux_avantage), 2)
@@ -725,7 +733,7 @@ def remplir_remises_obtenues(tableau, map_assglob):
     for ligne in range(len(tableau)):
         avoir_remises = Avoir_remises.objects.filter(mois_concerne=tableau[ligne][0]).first()
         
-        if not avoir_remises is None:
+        if avoir_remises is not None:
             tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE OBTENUE"]] = round(avoir_remises.specialites_pharmaceutiques_remise, 2)
             tableau[ligne][map_assglob["REMISE LPP 5,5 OU 10% OBTENUE"]] = round(avoir_remises.lpp_cinq_ou_dix_remise, 2)
             tableau[ligne][map_assglob["REMISE LPP 20% OBTENUE"]] = round(avoir_remises.lpp_vingt_remise, 2)
@@ -846,7 +854,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
                             totaux.append(round(total, 2))
                         else:
                             totaux.append("")
-                    except:
+                    except:  # noqa: E722
                         totaux.append("")
                         continue
 
@@ -953,7 +961,7 @@ def get_data_dict_total_cerp_mois():
     data_cerp = (
             Achat.objects
             .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-            .filter(Q(fournisseur__icontains='CERP') | Q(fournisseur__icontains='PHARMAT'))
+            .filter(fournisseur__icontains='CERP')
             .values('mois', 'annee')
             .annotate(
                 total_ht_hors_remise=Sum('montant_ht_hors_remise'), 
@@ -1245,6 +1253,9 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     entree_nb_boites = {}
     tableau_simplifie = init_tableau_simplifie(lignes, colonnes)
 
+    data_dict_total_cerp_mois = get_data_dict_total_cerp_mois()
+    taux_de_base, taux_avantage, taux_lpp = get_taux_avantage_commercial(mois_annee, data_dict_total_cerp_mois[mois_annee]["Total_cerp"])
+
     if len(mois_annee) > 4:
         avoirs_remises = {Avoir_remises.objects.filter(mois_concerne=mois_annee).first()}
         entree_nb_boites = get_data_from_dict(data_dict_nb_boites, mois_annee)
@@ -1262,7 +1273,7 @@ def generer_tableau_simplifie(mois_annee, data_dict):
                 entree_nb_boites["Total_boites"] += Decimal(valeurs["Total_boites"])
 
     tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "<450€ tva 2,1% TOTAL HT")) * Decimal(0.91), 2)
-    tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "<450€ tva 2,1% TOTAL HT")) * Decimal(0.91) * Decimal(0.025), 2)
+    tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "<450€ tva 2,1% TOTAL HT")) * Decimal(0.91) * taux_de_base, 2)
     for avoir in avoirs_remises:
         if avoir:
             tableau_simplifie[map_lignes["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE - 9%"]][map_colonnes["TOTAL OBTENU"]] += round(avoir.specialites_pharmaceutiques_montant, 2)
@@ -1273,7 +1284,7 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     )
 
     tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 5,5 OU 10% TOTAL HT")), 2)
-    tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 5,5 OU 10% TOTAL HT")) * Decimal(0.038), 2)
+    tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 5,5 OU 10% TOTAL HT")) * Decimal(0.91) * taux_lpp, 2)
     for avoir in avoirs_remises:
         if avoir:
             tableau_simplifie[map_lignes["LPP 5,5 OU 10% TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] += round(avoir.lpp_cinq_ou_dix_montant, 2)
@@ -1284,7 +1295,7 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     )
 
     tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 20% TOTAL HT")), 2)
-    tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 20% TOTAL HT")) * Decimal(0.038), 2)
+    tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "LPP 20% TOTAL HT")) * Decimal(0.91) * taux_lpp, 2)
     for avoir in avoirs_remises:
         if avoir:
             tableau_simplifie[map_lignes["LPP 20% TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] += round(avoir.lpp_vingt_montant, 2)
@@ -1295,7 +1306,7 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     )
 
     tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["TOTAL THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "PARAPHARMACIE TOTAL HT")), 2)
-    tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "PARAPHARMACIE TOTAL HT")) * Decimal(0.038), 2)
+    tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["REMISE THEORIQUE"]] = round(Decimal(get_data_from_dict(data_dict, mois_annee, "PARAPHARMACIE TOTAL HT")) * Decimal(0.91) * (taux_de_base + taux_avantage), 2)
     for avoir in avoirs_remises:
         if avoir:
             tableau_simplifie[map_lignes["PARAPHARMACIE TOTAL HT"]][map_colonnes["TOTAL OBTENU"]] += round(avoir.parapharmacie_montant, 2)

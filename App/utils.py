@@ -1,7 +1,6 @@
 import os
 import re
 import logging
-import traceback
 from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
 import json
 from datetime import datetime, timedelta
@@ -105,7 +104,7 @@ def extraire_numero_facture(format, texte):
 def listevide(liste):
     estvide = True
     for i in range(len(liste)):
-        if liste[i] != None and liste[i] != "":
+        if liste[i] is not None and liste[i] != "":
             estvide = False
 
     return estvide
@@ -119,7 +118,7 @@ def pre_traitement_table(format_facture: Format_facture, table_principale):
     if format_facture.format == "TEVA" or format_facture.format == "AVOIR TEVA":
         table_sans_lignes_vides = [i for i in table_principale if not listevide(i)]
         for ligne in table_sans_lignes_vides:
-            if ligne[0] != "" and ligne[0] != None and ligne[1] != "" and ligne[1] != None:
+            if ligne[0] != "" and ligne[0] is not None and ligne[1] != "" and ligne[1] is not None:
                 if ligne[0] != "Désignation":
                     #on est dans le bloc produit
                     table_pretraitee.append([
@@ -173,14 +172,14 @@ def process_tables(format, tables_page):
                 try:
                     if table[recotable[0]][recotable[1]] == recotable[2]:
                         table_principale = table
-                except:
+                except:  # noqa: E722
                     continue
 
             if format_facture.pre_traitement:
                 table_principale = pre_traitement_table(format_facture, table_principale)
 
             for ligne in range(len(table_principale)):
-                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i != None]
+                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i is not None]
                 if re.match(re.compile(format_facture.regex_ligne_table), ligne_sans_none[0]):
 
                         donnees_ligne = []
@@ -200,29 +199,37 @@ def process_tables(format, tables_page):
 
                                 code = ligne_sans_none[format_facture.indice_code_produit]
                                 donnees_ligne.append(''.join(caractere for caractere in code if not caractere.isalpha() and not caractere.isspace()))
-                            else: donnees_ligne.append("")
+                            else: 
+                                donnees_ligne.append("")
 
                             if format_facture.indice_designation != -1:
                                 donnees_ligne.append(ligne_sans_none[format_facture.indice_designation])
-                            else: donnees_ligne.append("")
+                            else: 
+                                donnees_ligne.append("")
 
                             if format_facture.indice_nb_boites != -1:
                                 if ligne_sans_none[format_facture.indice_nb_boites] != "":
                                     donnees_ligne.append(multiplicateur_teva * int(ligne_sans_none[format_facture.indice_nb_boites]))
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(0)
 
                             if format_facture.indice_prix_unitaire_ht != -1:
                                 if ligne_sans_none[format_facture.indice_prix_unitaire_ht] != "":
                                     donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")))
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(0)
 
                             if format_facture.indice_prix_unitaire_remise_ht != -1:
                                 if ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht] != "":
                                     donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_remise_ht].replace(",",".").replace(" ","")))
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(0)
 
                             if format_facture.indice_remise_pourcent != -1:
                                 if ligne_sans_none[format_facture.indice_remise_pourcent] != "":
@@ -246,7 +253,8 @@ def process_tables(format, tables_page):
                             if format_facture.indice_montant_ht_hors_remise != -1:
                                 if ligne_sans_none[format_facture.indice_montant_ht_hors_remise] != "":
                                     donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_montant_ht_hors_remise].replace(",",".").replace(" ","")))
-                                else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
                             else: 
                                 donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_prix_unitaire_ht].replace(",",".").replace(" ","")) * int(ligne_sans_none[format_facture.indice_nb_boites]))
 
@@ -264,8 +272,10 @@ def process_tables(format, tables_page):
                             if format_facture.indice_montant_ht != -1:
                                 if ligne_sans_none[format_facture.indice_montant_ht] != "":
                                     donnees_ligne.append(multiplicateur * float(ligne_sans_none[format_facture.indice_montant_ht].replace(",",".").replace(" ","")))
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(0)
 
                             if format_facture.indice_tva != -1:
                                 tva = ligne_sans_none[format_facture.indice_tva]
@@ -275,8 +285,10 @@ def process_tables(format, tables_page):
                                     donnees_ligne.append(tva)
                                 elif tva == 0.01 or tva == 0.02 or tva == 0.03 or tva == 0.04 or tva == 0.05:
                                     donnees_ligne.append(correspondance_tva_cerp(tva * 100))
-                                else: donnees_ligne.append(0)
-                            else: donnees_ligne.append(0)
+                                else: 
+                                    donnees_ligne.append(0)
+                            else: 
+                                donnees_ligne.append(0)
 
                             # for donnee in donnees_ligne:
                             #     print(donnee)
@@ -321,7 +333,7 @@ def process_avoir_remises(format, tables_page, numero, date):
             try:
                 if table[recotable[0]][recotable[1]] == recotable[2]:
                     table_principale = table
-            except Exception as e:
+            except:  # noqa: E722
                 continue
 
         if table_principale == []:
@@ -344,7 +356,7 @@ def process_avoir_remises(format, tables_page, numero, date):
                         else:
                             logger.error(f"Problème tva LPP sur avoir {numero} - {date}")
                             continue
-                    except:
+                    except:  # noqa: E722
                         continue
                 elif "Parapharmacie" in table_principale[i][0]:
                     parapharmacie_montant = Decimal(float(table_principale[i][1].replace(" ", "").replace(",", ".")))
@@ -413,7 +425,7 @@ def process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date
             try:
                 if table[recotable[0]][recotable[1]] == recotable[2]:
                     table_principale = table
-            except Exception as e:
+            except:  # noqa: E722
                 continue
 
         if table_principale == []:
@@ -433,11 +445,11 @@ def process_avoir_remises_deuxieme_page(format, tables_page, mois_concerne, date
                     upp_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
                     upp_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                 elif "Remises Autres" in table_principale[i][0]:
-                    if not "-" in table_principale[i][3].replace(" ", "").replace(",", "."):
+                    if "-" not in table_principale[i][3].replace(" ", "").replace(",", "."):
                         autres_montant = Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".")))
                     else:
                         autres_montant = Decimal(-1) * Decimal(float(table_principale[i][3].replace(" ", "").replace(",", ".").replace("-", "")))
-                    if not "-" in table_principale[i][2].replace(" ", "").replace(",", "."):
+                    if "-" not in table_principale[i][2].replace(" ", "").replace(",", "."):
                         autres_remise = Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".")))
                     else:
                         autres_remise = Decimal(-1) * Decimal(float(table_principale[i][2].replace(" ", "").replace(",", ".").replace("-", "")))
@@ -493,7 +505,7 @@ def process_ratrappage_teva(format, tables_page, texte_page, numero, date):
             try:
                 if table[recotable[0]][recotable[1]] == recotable[2]:
                     table_principale = table
-            except:
+            except:  # noqa: E722
                 continue
 
         if table_principale == []:
@@ -624,7 +636,7 @@ def extraire_produits(format, fournisseur, tables_page):
                     table_principale = table
 
             for ligne in range(len(table_principale)):
-                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i != None]
+                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i is not None]
                 if re.match(r'\d{1,2} \d{2} \d{2,4}', ligne_sans_none[0]):
                     valeurs_souhaitees = [
                         ligne_sans_none[2],
@@ -644,7 +656,7 @@ def extraire_produits(format, fournisseur, tables_page):
                     table_principale = table
 
             for ligne in range(len(table_principale)):
-                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i != None]
+                ligne_sans_none = [i for i in table_principale[ligne] if i != "None" and i is not None]
                 if re.match(r'\d{10,20}', ligne_sans_none[0]):
                     valeurs_souhaitees = [
                         ligne_sans_none[0],
@@ -696,7 +708,7 @@ def determiner_fournisseur_generique(designation, fournisseur=None):
 
 
 def determiner_type(designation):
-    from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES, NON_GENERIQUES, NON_REMBOURSABLES, OTC
+    from .constants import MARCHES_PRODUITS, LABORATOIRES_GENERIQUES, NON_GENERIQUES
 
     new_type = None
 
@@ -996,7 +1008,7 @@ def get_col_index(titre_colonne, tableau):
             if tableau[0][colonne] == titre_colonne:
                 return colonne
             
-    except:
+    except:  # noqa: E722
         for colonne in range(len(tableau)):
             if tableau[colonne] == titre_colonne:
                 return colonne
