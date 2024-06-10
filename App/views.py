@@ -3,11 +3,16 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import HttpResponse
 from django.core.files.storage import default_storage
-from .methods import *
-import pandas as pd
-from .models import Produit_catalogue, Constante, Releve_alliance
+from django.db.models.functions import ExtractMonth, ExtractYear
+from django.db.models import Q
 from datetime import datetime
 import logging
+import pandas as pd
+from .methods import handle_uploaded_facture, process_factures, telecharger_excel
+from .methods import generer_tableau_alliance, generer_tableau_eg, generer_tableau_generiques, generer_tableau_grossiste, generer_tableau_simplifie
+from .methods import generer_tableau_synthese, generer_tableau_teva, generer_tableau_alliance_decade, data_dict_tab_simplifie, data_dict_tab_simplifie_full_year
+from .utils import quicksort_liste
+from .models import Achat, Produit_catalogue, Constante, Releve_alliance
 from .tasks import async_import_factures_depuis_dossier
 
 # Create your views here.
@@ -593,6 +598,26 @@ def tableau_alliance(request):
         })
 
     return render(request, 'index_tableau_alliance.html', {
+        'dernier_import_digi' : dernier_import_digi
+    })
+
+
+@login_required
+def tableau_alliance_decade(request):
+
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    if request.method == 'POST':
+
+        tableau_alliance, colonnes = generer_tableau_alliance_decade()
+
+        return render(request, 'index_tableau_alliance_decade.html', {
+            'tableau_alliance_decade': tableau_alliance,
+            'colonnes': colonnes,
+            'dernier_import_digi' : dernier_import_digi
+        })
+
+    return render(request, 'index_tableau_alliance_decade.html', {
         'dernier_import_digi' : dernier_import_digi
     })
 

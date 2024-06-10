@@ -1,0 +1,64 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style_tableau.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>Application contrôle remises - Pharmacie Michelet</title>
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="content">
+        <h1>Tableau ALLIANCE par décade</h1>
+
+        <h5>
+            Dernier import Digipharmacie : {{ dernier_import_digi }}
+        </h5>
+
+        <form method="post" action="\tableau_alliance_decade\">
+            {% csrf_token %}
+            <button type="submit">Afficher le tableau</button>
+        </form>
+
+        <form method="get" action="\telecharger_releves_alliance\">
+            <button type="submit">Télécharger la liste des relevés disponibles</button>
+        </form>
+
+        {% if tableau_alliance_decade %}
+
+            <h6>
+            </h6>
+            
+            <table id='tableau_alliance_decade' border="1">
+                <thead>
+                <tr>
+                    {% for categorie in colonnes %}
+                        <th class="table-header">{{ categorie }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for ligne in tableau_alliance_decade %}
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                        {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
+                        {% for cellule in ligne %}
+                            <td>
+                                {{ cellule }}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        <br><br>
+    </div>
+
+</body>
+</html>

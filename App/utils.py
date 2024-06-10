@@ -938,7 +938,17 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
 
 
 def convert_date(date_str):
-    return datetime.strptime(date_str, "%m/%Y")
+    try:
+        # print(1, date_str)
+        date = datetime.strptime(date_str, "%m/%Y")
+    except:  # noqa: E722
+        try:
+            # print(2, date_str)
+            date = datetime.strptime(date_str, "%d/%m/%Y")
+        except:  # noqa: E722
+            # print(3, date_str)
+            date = date_str
+    return date
 
 
 def quicksort_liste(liste):
@@ -968,6 +978,17 @@ def quicksort_tableau(list_of_lists):
         less = [x for x in list_of_lists[1:] if convert_date(x[0]) < pivot_date]
         greater = [x for x in list_of_lists[1:] if convert_date(x[0]) >= pivot_date]
         return quicksort_tableau(less) + [pivot] + quicksort_tableau(greater)
+    
+
+def quicksort_tableau_dates_classiques(list_of_lists):
+    if len(list_of_lists) <= 1:
+        return list_of_lists
+    else:
+        pivot = list_of_lists[0]
+        pivot_date = datetime.strptime(pivot[0], '%d/%m/%Y')
+        less = [x for x in list_of_lists[1:] if datetime.strptime(x[0], '%d/%m/%Y') < pivot_date]
+        greater = [x for x in list_of_lists[1:] if datetime.strptime(x[0], '%d/%m/%Y') >= pivot_date]
+        return quicksort_tableau_dates_classiques(less) + [pivot] + quicksort_tableau_dates_classiques(greater)
     
 
 def quicksort_dict(dictionary):

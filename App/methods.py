@@ -14,7 +14,7 @@ from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
 from .utils import extraire_format_fournisseur, extraire_date, extraire_numero_facture, extraire_produits
 from .utils import process_avoir_remises, process_avoir_remises_deuxieme_page, process_ratrappage_teva, process_releve_alliance, process_tables
 from .utils import categoriser_achat, determiner_fournisseur_generique, get_categorie_remise, calculer_remise_theorique, get_taux_avantage_commercial
-from .utils import get_data_from_dict, quicksort_dict, quicksort_liste, quicksort_tableau, convert_date
+from .utils import get_data_from_dict, quicksort_dict, quicksort_liste, quicksort_tableau, quicksort_tableau_dates_classiques, convert_date
 from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance, Format_facture
 
 
@@ -823,7 +823,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
             elif ligne == len(tableau) - 1:
                 #on regarde si il y a changement à l'avant derniere ligne
                 #print(f'derniere ligne : ligne {ligne} / {len(tableau) - 1}. Nb elements : {len(tableau)}')
-                if tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année":
+                if tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Décade":
                     if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                         traitement = True
                         double_traitement = True
@@ -835,7 +835,8 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
                     traitement = True
                     ligne += 1
                 
-            elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année":
+            elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Décade":
+                print(tableau[ligne][0], convert_date(tableau[ligne][0]).year)
                 if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                     traitement = True
                     #print("comparaison de dates")
@@ -845,6 +846,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
             
             #print(traitement)
             if traitement:
+                print(traitement, tableau[ligne - 1][0], f'TOTAL {convert_date(tableau[ligne - 1][0]).year}')
                 # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
                 # Ligne de totaux initialisée avec un vide pour la colonne mois annee
                 totaux = [f'TOTAL {convert_date(tableau[ligne - 1][0]).year}']
@@ -2157,7 +2159,7 @@ def generer_tableau_eg():
 
 
 def mois_annees_tab_alliance(map_colonnes):
-    tableau=[]
+    tableau = []
     mois_annees = []
 
     data_mois_annees = (
@@ -2219,7 +2221,60 @@ def generer_tableau_alliance():
                 ligne[map_colonnes["Frais generaux"]] = round(entry['frais_generaux'], 2)
                 ligne[map_colonnes["Facturation services"]] = round(entry['facturation_services'], 2)
 
+    print(tableau_alliance)
+
     tableau_alliance = quicksort_tableau(tableau_alliance)
+    tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
+
+    return tableau_alliance, colonnes
+
+
+# -----------------------------------
+
+# -------- TABLEAU ALLIANCE DECADE --
+
+# -----------------------------------
+
+
+def generer_tableau_alliance_decade():
+    colonnes = [
+        "Décade",
+        "Montant grossiste",
+        "Montant short list",
+        "Avantages commerciaux",
+        "Frais generaux",
+        "Facturation services",
+        "Net à payer",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    
+    tableau_alliance = []
+
+    releves = (
+        Releve_alliance.objects
+        .annotate(annee=ExtractYear('date'))
+        .filter(annee__gte = 2022)
+    )
+
+    for entry in releves:
+        nouvelle_ligne = [0] * (len(map_colonnes))
+        tableau_alliance.append(nouvelle_ligne)
+
+    i = 0
+
+    for entry in releves:
+        ligne = tableau_alliance[i]
+        ligne[map_colonnes["Décade"]] = entry.date.strftime('%d/%m/%Y')
+        ligne[map_colonnes["Net à payer"]] = round(entry.net_a_payer, 2)
+        ligne[map_colonnes["Montant grossiste"]] = round(entry.montant_grossiste, 2)
+        ligne[map_colonnes["Montant short list"]] = round(entry.montant_short_list, 2)
+        ligne[map_colonnes["Avantages commerciaux"]] = round(entry.avantages_commerciaux, 2)
+        ligne[map_colonnes["Frais generaux"]] = round(entry.frais_generaux, 2)
+        ligne[map_colonnes["Facturation services"]] = round(entry.facturation_services, 2)
+        i += 1
+
+    tableau_alliance = quicksort_tableau_dates_classiques(tableau_alliance)
     tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
 
     return tableau_alliance, colonnes
