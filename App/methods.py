@@ -696,8 +696,11 @@ def traitement_colonnes_assiette_globale(tableau, map_assglob, data_dict_total_c
                 tableau[ligne][map_assglob["NB BOITES >450€"]] = round(Decimal(0), 0)
 
         for ligne in range(len(tableau)):
-            taux_de_base, taux_avantage, taux_lpp = get_taux_avantage_commercial(tableau[ligne][map_assglob["Mois/Année"]], data_dict_total_cerp_mois[tableau[ligne][map_assglob["Mois/Année"]]]["Total_cerp"])
-            #print(tableau[ligne][map_assglob["Mois/Année"]], data_dict_total_cerp_mois[tableau[ligne][map_assglob["Mois/Année"]]]["Total_cerp"], round(taux_de_base, 3), round(taux_avantage, 3), round(taux_lpp, 3))
+            try:
+                taux_de_base, taux_avantage, taux_lpp = get_taux_avantage_commercial(tableau[ligne][map_assglob["Mois/Année"]], data_dict_total_cerp_mois[tableau[ligne][map_assglob["Mois/Année"]]]["Total_cerp"])
+                #print(tableau[ligne][map_assglob["Mois/Année"]], data_dict_total_cerp_mois[tableau[ligne][map_assglob["Mois/Année"]]]["Total_cerp"], round(taux_de_base, 3), round(taux_avantage, 3), round(taux_lpp, 3))
+            except KeyError:
+                taux_de_base, taux_avantage, taux_lpp = 0, 0, 0
 
             tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]] = round(Decimal(tableau[ligne][map_assglob["<450€ tva 2,1% TOTAL HT = ASSIETTE GLOBALE"]]) * Decimal(0.91), 2)
             tableau[ligne][map_assglob["REMISE ASSIETTE GLOBALE THEORIQUE"]] = round(Decimal(tableau[ligne][map_assglob["ASSIETTE GLOBALE -9%"]]) * taux_de_base, 2)
@@ -887,22 +890,22 @@ def calcul_pourcentages(taille_tableau, totaux, categories, map_categories):
     pourcentages = ['']
     for colonne in range(1, taille_tableau):
         if "REMISE GROSSISTE TOTALE OBTENUE" in categories[colonne]:
-            if totaux[colonne - 5] != 0 and totaux[colonne - 5] != '':
+            if totaux[map_categories["REMISE GROSSISTE TOTALE THEORIQUE"]] != 0 and totaux[map_categories["REMISE GROSSISTE TOTALE THEORIQUE"]] != '':
                 pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["REMISE GROSSISTE TOTALE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "GROSSISTE REMISE OBTENUE" in categories[colonne]:
-            if totaux[colonne - 1] != 0 and totaux[colonne - 1] != '':
+            if totaux[map_categories["GROSSISTE REMISE THEORIQUE"]] != 0 and totaux[map_categories["GROSSISTE REMISE THEORIQUE"]] != '':
                 pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["GROSSISTE REMISE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "DIRECT REMISE OBTENUE" in categories[colonne]:
-            if totaux[colonne - 1] != 0 and totaux[colonne - 1] != '':
+            if totaux[map_categories["DIRECT REMISE THEORIQUE"]] != 0 and totaux[map_categories["DIRECT REMISE THEORIQUE"]] != '':
                 pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["DIRECT REMISE THEORIQUE"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
         elif "TOTAL REMISE OBTENUE HT (HORS 0%)" in categories[colonne]:
-            if totaux[colonne - 2] != 0 and totaux[colonne - 2] != '':
+            if totaux[map_categories["TOTAL REMISE THEORIQUE HT (HORS 0%)"]] != 0 and totaux[map_categories["TOTAL REMISE THEORIQUE HT (HORS 0%)"]] != '':
                 pourcentages.append(f'{round(totaux[colonne] / totaux[map_categories["TOTAL REMISE THEORIQUE HT (HORS 0%)"]] * 100, 2)} %')
             else:
                 pourcentages.append('NA')
@@ -1254,7 +1257,10 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     tableau_simplifie = init_tableau_simplifie(lignes, colonnes)
 
     data_dict_total_cerp_mois = get_data_dict_total_cerp_mois()
-    taux_de_base, taux_avantage, taux_lpp = get_taux_avantage_commercial(mois_annee, data_dict_total_cerp_mois[mois_annee]["Total_cerp"])
+    try:
+        taux_de_base, taux_avantage, taux_lpp = get_taux_avantage_commercial(mois_annee, data_dict_total_cerp_mois[mois_annee]["Total_cerp"])
+    except KeyError:
+        taux_de_base, taux_avantage, taux_lpp = 0, 0, 0
 
     if len(mois_annee) > 4:
         avoirs_remises = {Avoir_remises.objects.filter(mois_concerne=mois_annee).first()}
