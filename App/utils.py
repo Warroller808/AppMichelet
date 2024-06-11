@@ -4,6 +4,7 @@ import logging
 from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
 import json
 from datetime import datetime, timedelta
+import calendar
 from decimal import Decimal
 
 
@@ -940,7 +941,8 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
 def convert_date(date_str):
     try:
         # print(1, date_str)
-        date = datetime.strptime(date_str, "%m/%Y")
+        month_year = datetime.strptime(date_str, "%m/%Y")
+        date = month_year.replace(day=calendar.monthrange(month_year.year, month_year.month)[1])
     except:  # noqa: E722
         try:
             # print(2, date_str)

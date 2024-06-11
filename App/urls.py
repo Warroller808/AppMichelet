@@ -17,7 +17,6 @@ urlpatterns = [
     path('tableau_teva/', views.tableau_teva, name='tableau_teva'),
     path('tableau_eg/', views.tableau_eg, name='tableau_eg'),
     path('tableau_alliance/', views.tableau_alliance, name='tableau_alliance'),
-    path('tableau_alliance_decade/', views.tableau_alliance_decade, name='tableau_alliance_decade'), 
     path('telecharger_releves_alliance/', views.telecharger_releves_alliance, name='telecharger_releves_alliance'),
     path('telecharger_achats/', views.telecharger_achats, name='telecharger_achats'),
     path('accounts/', include('django.contrib.auth.urls')),

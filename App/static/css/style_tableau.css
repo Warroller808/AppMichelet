@@ -39,6 +39,11 @@ tr.totaux {
     background-color: #f2f2f2;
 }
 
+tr.total-month {
+    font-weight: bold;
+    background-color: #f2f2f2;
+}
+
 /* Style des liens dans le tableau (si vous en avez) */
 a {
     color: #3498db;

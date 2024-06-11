@@ -19,14 +19,11 @@
         <h5>
             Dernier import Digipharmacie : {{ dernier_import_digi }}
         </h5>
+        <form method="get" action="\tableau_alliance\" id="filter-form">
+            <label for="decades">Afficher les décades:</label>
+            <input type="checkbox" name="decades" id="decades" {% if show_decades %}checked{% endif %}>
 
-        <form method="post" action="\tableau_alliance\">
-            {% csrf_token %}
-            <button type="submit">Afficher le tableau</button>
-        </form>
-
-        <form method="get" action="\telecharger_releves_alliance\">
-            <button type="submit">Télécharger la liste des relevés disponibles</button>
+            <input type="hidden" name="decades_value" id="decades_value" value="{{ show_decades|yesno:'on,off' }}">
         </form>
 
         {% if tableau_alliance %}
@@ -45,6 +42,7 @@
                 <tbody>
                 {% for ligne in tableau_alliance %}
                     <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                        {% if ligne.0|slice:":1" == '=' %} class="total-month" {% endif %}
                         {% if "Mois/Année" in ligne.0 %} class="inner-header" {% endif %}>
                         {% for cellule in ligne %}
                             <td>
@@ -57,8 +55,21 @@
             </table>
         {% endif %}
 
+        <br>
+        
+        <form method="get" action="\telecharger_releves_alliance\">
+            <button type="submit">Télécharger la liste des relevés disponibles</button>
+        </form>
+
         <br><br>
     </div>
 
+    <script>
+        document.getElementById('decades').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
+            document.getElementById('decades_value').value = this.checked ? 'on' : 'off';
+            document.getElementById('filter-form').submit();
+        });
+    </script>
 </body>
 </html>

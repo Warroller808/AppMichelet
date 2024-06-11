@@ -836,7 +836,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
                     ligne += 1
                 
             elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Décade":
-                print(tableau[ligne][0], convert_date(tableau[ligne][0]).year)
+                # print(tableau[ligne][0], convert_date(tableau[ligne][0]).year)
                 if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                     traitement = True
                     #print("comparaison de dates")
@@ -846,7 +846,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
             
             #print(traitement)
             if traitement:
-                print(traitement, tableau[ligne - 1][0], f'TOTAL {convert_date(tableau[ligne - 1][0]).year}')
+                # print(traitement, tableau[ligne - 1][0], f'TOTAL {convert_date(tableau[ligne - 1][0]).year}')
                 # ici, ligne est la ligne juste après le changement de date, donc on va insérer les totaux avant
                 # Ligne de totaux initialisée avec un vide pour la colonne mois annee
                 totaux = [f'TOTAL {convert_date(tableau[ligne - 1][0]).year}']
@@ -2181,7 +2181,7 @@ def mois_annees_tab_alliance(map_colonnes):
     return tableau
 
 
-def generer_tableau_alliance():
+def generer_tableau_alliance(show_decades):
     colonnes = [
         "Mois/Année",
         "Montant grossiste",
@@ -2221,35 +2221,18 @@ def generer_tableau_alliance():
                 ligne[map_colonnes["Frais generaux"]] = round(entry['frais_generaux'], 2)
                 ligne[map_colonnes["Facturation services"]] = round(entry['facturation_services'], 2)
 
-    print(tableau_alliance)
-
     tableau_alliance = quicksort_tableau(tableau_alliance)
     tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
+
+    if show_decades:
+        tableau_alliance = ajouter_decades(tableau_alliance, map_colonnes)
 
     return tableau_alliance, colonnes
 
 
-# -----------------------------------
-
-# -------- TABLEAU ALLIANCE DECADE --
-
-# -----------------------------------
-
-
-def generer_tableau_alliance_decade():
-    colonnes = [
-        "Décade",
-        "Montant grossiste",
-        "Montant short list",
-        "Avantages commerciaux",
-        "Frais generaux",
-        "Facturation services",
-        "Net à payer",
-    ]
-
-    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+def ajouter_decades(tableau_alliance, map_colonnes):
     
-    tableau_alliance = []
+    tableau_decades = []
 
     releves = (
         Releve_alliance.objects
@@ -2259,13 +2242,13 @@ def generer_tableau_alliance_decade():
 
     for entry in releves:
         nouvelle_ligne = [0] * (len(map_colonnes))
-        tableau_alliance.append(nouvelle_ligne)
+        tableau_decades.append(nouvelle_ligne)
 
     i = 0
 
     for entry in releves:
-        ligne = tableau_alliance[i]
-        ligne[map_colonnes["Décade"]] = entry.date.strftime('%d/%m/%Y')
+        ligne = tableau_decades[i]
+        ligne[map_colonnes["Mois/Année"]] = entry.date.strftime('%d/%m/%Y')
         ligne[map_colonnes["Net à payer"]] = round(entry.net_a_payer, 2)
         ligne[map_colonnes["Montant grossiste"]] = round(entry.montant_grossiste, 2)
         ligne[map_colonnes["Montant short list"]] = round(entry.montant_short_list, 2)
@@ -2274,7 +2257,23 @@ def generer_tableau_alliance_decade():
         ligne[map_colonnes["Facturation services"]] = round(entry.facturation_services, 2)
         i += 1
 
-    tableau_alliance = quicksort_tableau_dates_classiques(tableau_alliance)
-    tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
+    tableau_decades = quicksort_tableau_dates_classiques(tableau_decades)
+    tableau_merged = []
 
-    return tableau_alliance, colonnes
+    for mois in tableau_alliance:
+        if "TOTAL" not in mois[0] and mois[0] != "" and mois[0] != "Mois/Année":
+            mois_annee_date = convert_date(mois[0])
+            
+            for semaine in tableau_decades:
+                semaine_date = convert_date(semaine[0])
+                if semaine_date.year == mois_annee_date.year and semaine_date.month == mois_annee_date.month:
+                    tableau_merged.append(semaine)
+
+            tableau_merged.append(mois)
+            tableau_merged[-1][0] = "=> " + tableau_merged[-1][0]
+        else:
+            tableau_merged.append(mois)
+
+        print(tableau_merged)
+            
+    return tableau_merged
