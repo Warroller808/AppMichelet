@@ -9,10 +9,10 @@ from datetime import datetime
 import logging
 import pandas as pd
 from .methods import handle_uploaded_facture, process_factures, telecharger_excel
-from .methods import generer_tableau_alliance, generer_tableau_eg, generer_tableau_generiques, generer_tableau_grossiste, generer_tableau_simplifie
+from .methods import generer_tableau_alliance, generer_tableau_eg, generer_tableau_generiques, generer_tableau_grossiste, generer_tableau_simplifie, generer_tableau_huitaine_cerp
 from .methods import generer_tableau_synthese, generer_tableau_teva, data_dict_tab_simplifie, data_dict_tab_simplifie_full_year
 from .utils import quicksort_liste
-from .models import Achat, Produit_catalogue, Constante, Releve_alliance
+from .models import Achat, Produit_catalogue, Constante, Releve_alliance, Releve_CERP
 from .tasks import async_import_factures_depuis_dossier
 
 # Create your views here.
@@ -507,6 +507,68 @@ def tableau_simplifie(request):
     }
 
     return render(request, 'index_tableau_simplifie.html', context)
+
+
+@login_required
+def tableau_huitaine_cerp(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+
+    print("GET parameters:", request.GET)
+
+    data_annees = (
+        Releve_CERP.objects
+        .annotate(annee=ExtractYear('huitaine'))
+        .filter(annee__gte = 2022)
+        .values('annee')
+        .distinct()
+    )
+    annees = [str(element['annee']) for element in data_annees]
+    annees = ["Tous"] + quicksort_liste(annees)
+    annee_selectionnee = request.GET.get('annee', '')
+
+    if not annee_selectionnee and annees:
+        annee_selectionnee = "Tous"
+
+    filtre_annee = Q()
+    if annee_selectionnee != "Tous":
+        filtre_annee = Q(annee=annee_selectionnee)
+
+    data_mois = (
+        Releve_CERP.objects
+        .annotate(annee=ExtractYear('huitaine'), mois=ExtractMonth('huitaine'))
+        .filter(
+            filtre_annee,
+            annee__gte = 2022,
+        )
+        .values('mois')
+        .distinct()
+    )
+    
+    mois = [str(element['mois']) for element in data_mois]
+    mois = ["Tous"] + [str(intelement) for intelement in quicksort_liste([int(strelement) for strelement in mois])]
+    mois_selectionne = request.GET.get('mois', '')
+
+    if not mois_selectionne and mois:
+        mois_selectionne = "Tous"
+
+    filtre_mois = Q()
+    if mois_selectionne != "Tous":
+        filtre_mois = Q(mois=mois_selectionne)
+
+    tableau_huitaine_cerp, colonnes = generer_tableau_huitaine_cerp(filtre_annee, filtre_mois)
+
+    return render(request, 'index_tableau_huitaine_cerp.html', {
+        'tableau_huitaine_cerp': tableau_huitaine_cerp,
+        'colonnes': colonnes,
+        'dernier_import_cerp' : dernier_import_cerp,
+        'annees': annees,
+        'annee_selectionnee': annee_selectionnee,
+        'mois': mois,
+        'mois_selectionne': mois_selectionne,
+    })
+
+    
 
 
 @login_required

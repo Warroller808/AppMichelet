@@ -66,6 +66,19 @@ class Releve_alliance(models.Model):
         unique_together = ('numero', 'date')
 
 
+class Releve_CERP(models.Model):
+    numero = models.CharField("NUMERO", max_length=128)
+    date = models.DateField("DATE", blank=False)
+    huitaine = models.DateField("HUITAINE", blank=True, null=True)
+    total_ttc = models.DecimalField("TOTAL TTC", max_digits=15, decimal_places=4, default=0.00)
+
+    def __str__(self):
+        return f"{self.numero} {self.huitaine}"
+    
+    class Meta:
+        unique_together = ('numero', 'huitaine')
+
+
 class Avoir_remises(models.Model):
     numero = models.CharField("NUMERO", max_length=128, primary_key=True)
     date = models.DateField("DATE", blank=False)

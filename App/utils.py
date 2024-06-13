@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance
+from .models import Format_facture, Produit_catalogue, Achat, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance, Releve_CERP
 import json
 from datetime import datetime, timedelta
 import calendar
@@ -604,6 +604,37 @@ def process_releve_alliance(texte_page, numero, date):
 
     except Exception as e:
         logger.error(f"Erreur de traitement du relevé Alliance {numero} émis le {date} : {e}")
+        success = False
+
+    return success
+
+
+def process_releve_cerp(texte_page, numero, date):
+    success = True
+
+    texte_page = texte_page.replace("\n", " ").strip()
+
+    try:
+        releve_cerp, created = Releve_CERP.objects.get_or_create(numero = numero, date = date)
+        
+        if created:
+            releve_cerp.total_ttc = Decimal(0)
+        
+        regex = r'Arrêté au (\d{2}/\d{2}/\d{4})'
+        match = re.search(regex, texte_page)
+        if match:
+            releve_cerp.huitaine = datetime.strptime(match.group(1), "%d/%m/%Y")
+            print(releve_cerp.huitaine)
+
+        regex = r'\d{2}/\d{2}/\d{4}(-*\d{1,5},\d{1,2})€VentilationpartauxdeT.V.A'
+        match = re.search(regex, texte_page.replace(" ", ""))
+        if match:
+            releve_cerp.total_ttc = float(match.group(1).replace(",","."))
+
+        releve_cerp.save()
+
+    except Exception as e:
+        logger.error(f"Erreur de traitement du relevé CERP {numero} émis le {date} : {e}")
         success = False
 
     return success

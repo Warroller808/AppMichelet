@@ -28,7 +28,7 @@ def import_factures_auto():
             if success:
                 supprimer_fichiers_dossier(DL_FOLDER_PATH_AUTO)
                 # UPDATER LA DATE DE DERNIERE IMPORTATION
-                logger.error(f'Succès de l\'importation automatique et du traitement. Factures supprimées dans le dossier.')
+                logger.error('Succès de l\'importation automatique et du traitement. Factures supprimées dans le dossier.')
 
                 if success_cerp:
                     last_import_date_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP")

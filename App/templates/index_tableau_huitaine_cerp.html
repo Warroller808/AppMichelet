@@ -1,0 +1,87 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style_tableau.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <title>Application contrôle remises - Pharmacie Michelet</title>
+</head>
+<body>
+    {% include 'navbar.html' %}
+
+    <div class="content">
+        <h1>Tableau huitaine CERP</h1>
+
+        <h5>
+            Dernier import CERP : {{ dernier_import_cerp }}
+        </h5>
+        <form method="get" action="\tableau_huitaine_cerp\" id="filter-form">
+            <label for="annee">Sélectionnez une année :</label>
+            <select name="annee" id="annee">
+                {% for an in annees %}
+                    <option value="{{ an }}" {% if an == annee_selectionnee %}selected{% endif %}>{{ an }}</option>
+                {% endfor %}
+            </select>
+            <br><br>
+            <label for="mois">Sélectionnez un mois :</label>
+            <select name="mois" id="mois">
+                {% for mo in mois %}
+                    <option value="{{ mo }}" {% if mo == mois_selectionne %}selected{% endif %}>{{ mo }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        {% if tableau_huitaine_cerp %}
+
+            <h6>
+            </h6>
+            
+            <table id='tableau_huitaine_cerp' border="1">
+                <thead>
+                <tr>
+                    {% for categorie in colonnes %}
+                        <th class="table-header">{{ categorie }}</th>
+                    {% endfor %}
+                </tr>
+                </thead>
+                <tbody>
+                {% for ligne in tableau_huitaine_cerp %}
+                    <tr {% if ligne.0|slice:":5" == 'TOTAL' or not ligne.0 %} class="totaux" {% endif %}
+                        {% if ligne.0|slice:":1" == '=' %} class="total-month" {% endif %}
+                        {% if "Huitaine" in ligne.0 %} class="inner-header" {% endif %}>
+                        {% for cellule in ligne %}
+                            <td>
+                                {{ cellule }}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+
+        <br>
+        
+        <!-- <form method="get" action="\telecharger_releves_alliance\">
+            <button type="submit">Télécharger la liste des relevés disponibles</button>
+        </form> -->
+
+        <br><br>
+    </div>
+
+    <script>
+        document.getElementById('mois').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
+            document.getElementById('filter-form').submit();
+        });
+        document.getElementById('annee').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
+            document.getElementById('filter-form').submit();
+        });
+    </script>
+</body>
+</html>

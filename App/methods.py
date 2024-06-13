@@ -3,7 +3,8 @@ import pdfplumber
 import pytesseract
 import logging
 import traceback
-from datetime import datetime
+from datetime import datetime, date
+from collections import defaultdict
 from django.conf import settings
 from django.db.models import Sum, F, Q, ExpressionWrapper, fields
 from django.db.models.functions import ExtractMonth, ExtractYear
@@ -12,10 +13,10 @@ from decimal import Decimal
 from datetime import timedelta
 from .constants import DL_FOLDER_PATH_MANUAL, DL_FOLDER_PATH_AUTO, PRODUITS_LPP
 from .utils import extraire_format_fournisseur, extraire_date, extraire_numero_facture, extraire_produits
-from .utils import process_avoir_remises, process_avoir_remises_deuxieme_page, process_ratrappage_teva, process_releve_alliance, process_tables
+from .utils import process_avoir_remises, process_avoir_remises_deuxieme_page, process_ratrappage_teva, process_releve_alliance, process_tables, process_releve_cerp
 from .utils import categoriser_achat, determiner_fournisseur_generique, get_categorie_remise, calculer_remise_theorique, get_taux_avantage_commercial
 from .utils import get_data_from_dict, quicksort_dict, quicksort_liste, quicksort_tableau, quicksort_tableau_dates_classiques, convert_date
-from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance, Format_facture
+from .models import Achat, Produit_catalogue, Avoir_remises, Avoir_ratrappage_teva, Releve_alliance, Format_facture, Releve_CERP
 
 
 BASE_DIR = settings.BASE_DIR
@@ -149,6 +150,8 @@ def extract_data(facture_path, facture_name):
                 if format_inst.regex_numero_facture != "NA":
                     numero_facture = extraire_numero_facture(format, texte_page)
 
+                # print(format, fournisseur, date, numero_facture)
+
                 if not date or (format_inst.regex_numero_facture != "NA" and not numero_facture):
                     print(f'error date ou num sur page {num_page + 1} - {facture_name}')
                     logger.error(f'Erreur de récupération de la date ou du numéro de facture donc page ignorée. Date : {date}, numéro de facture : {numero_facture}, format de facture : {format} - fichier : {facture_name}, page : {num_page}')
@@ -165,7 +168,7 @@ def extract_data(facture_path, facture_name):
                 tables_page_toutes.append(tables_page)
                 continue
 
-            if "AVOIR REMISES CERP" not in format and format != "RATRAPPAGE TEVA" and format != "RELEVE ALLIANCE":
+            if "AVOIR REMISES CERP" not in format and format != "RATRAPPAGE TEVA" and format != "RELEVE ALLIANCE" and format != "RELEVE CERP":
                 # On vérifie si la facture a déjà été traitée, si oui on prévient
                 if not Achat.objects.filter(numero_facture=numero_facture):
                     processed_table, events_achats = process_tables(format, tables_page)
@@ -235,6 +238,17 @@ def extract_data(facture_path, facture_name):
                             events.append(f'Le relevé Alliance {facture_name} - {numero_facture}, page {num_page + 1} a été édité')
                     else:
                         events.append(f'Le relevé Alliance {facture_name} - {numero_facture}, page {num_page + 1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
+                elif format == "RELEVE CERP":
+                    created = not Releve_CERP.objects.filter(numero=numero_facture).exists()
+                    success = process_releve_cerp(texte_page, numero_facture, date)
+
+                    if success:
+                        if created:
+                            events.append(f'Le relevé CERP {facture_name} - {numero_facture}, page {num_page + 1} a été ajouté')
+                        else:
+                            events.append(f'Le relevé CERP {facture_name} - {numero_facture}, page {num_page + 1} a été édité')
+                    else:
+                        events.append(f'Le relevé CERP {facture_name} - {numero_facture}, page {num_page + 1} a rencontré une erreur de traitement, il n\'a pas été sauvegardé')
                 else:
                     events.append(f'Format reconnu pour {facture_name} - {numero_facture} - {date}: {format}, mais non traité (voir avec administrateur)')
                     continue
@@ -823,7 +837,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
             elif ligne == len(tableau) - 1:
                 #on regarde si il y a changement à l'avant derniere ligne
                 #print(f'derniere ligne : ligne {ligne} / {len(tableau) - 1}. Nb elements : {len(tableau)}')
-                if tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Décade":
+                if tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Huitaine":
                     if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                         traitement = True
                         double_traitement = True
@@ -835,7 +849,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
                     traitement = True
                     ligne += 1
                 
-            elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Décade":
+            elif tableau[ligne - 1][0] != "" and tableau[ligne - 1][0] != "Mois/Année" and tableau[ligne - 1][0] != "Huitaine":
                 # print(tableau[ligne][0], convert_date(tableau[ligne][0]).year)
                 if convert_date(tableau[ligne][0]).year != convert_date(tableau[ligne - 1][0]).year:
                     traitement = True
@@ -852,7 +866,7 @@ def totaux_pourcentages_par_annee(tableau, categories, map):
                 totaux = [f'TOTAL {convert_date(tableau[ligne - 1][0]).year}']
                 for colonne in range(1, len(tableau[0])):
                     try:
-                        if not categories[colonne].startswith("%"):
+                        if not categories[colonne].startswith("%") and categories[colonne] != "Cumul mois":
                             total = Decimal(0)
                             for ligne_annee in range(ligne_annee_precedente + 1, ligne):
                                 total += Decimal(tableau[ligne_annee][colonne])
@@ -1482,6 +1496,94 @@ def generer_tableau_simplifie(mois_annee, data_dict):
     )
 
     return tableau_simplifie, colonnes
+
+
+# -----------------------------------
+
+# -------- TABLEAU GENERIQUES ------- 
+
+# -----------------------------------
+
+
+def base_tableau_huitaine_cerp(map_colonnes, filtre_annee, filtre_mois):
+    tableau = []
+    mois_annees = []
+
+    data_mois_annees = (
+        Releve_alliance.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def generer_tableau_huitaine_cerp(filtre_annee, filtre_mois):
+    tableau_huitaine_cerp = []
+
+    colonnes = [
+        "Huitaine",
+        "Total TTC",
+        "Cumul mois",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+
+    releves = (
+        Releve_CERP.objects
+        .annotate(mois=ExtractMonth('huitaine'), annee=ExtractYear('huitaine'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
+    )
+
+    for releve in releves:
+        tableau_huitaine_cerp.append([releve.huitaine, round(releve.total_ttc, 2), 0])
+
+    tableau_huitaine_cerp = quicksort_liste(tableau_huitaine_cerp)
+
+    cumulative_sums = defaultdict(int)
+
+    for index, huitaine in enumerate(tableau_huitaine_cerp):
+        if isinstance(huitaine[map_colonnes["Huitaine"]], date):
+            month = huitaine[map_colonnes["Huitaine"]].strftime("%m/%Y")
+            cumulative_sums[month] += huitaine[map_colonnes["Total TTC"]]
+            huitaine[map_colonnes["Cumul mois"]] = cumulative_sums[month]
+
+    if filtre_mois.children == []:
+        tableau_huitaine_cerp = totaux_pourcentages_par_annee(tableau_huitaine_cerp, colonnes, map_colonnes)
+
+    for index, huitaine in enumerate(tableau_huitaine_cerp):
+        if isinstance(huitaine[map_colonnes["Huitaine"]], date):
+            month = huitaine[map_colonnes["Huitaine"]].strftime("%m/%Y")
+            if index < len(tableau_huitaine_cerp) - 1:
+                if isinstance(tableau_huitaine_cerp[index + 1][map_colonnes["Huitaine"]], date):
+                    if tableau_huitaine_cerp[index + 1][map_colonnes["Huitaine"]].month != huitaine[map_colonnes["Huitaine"]].month:
+                        tableau_huitaine_cerp.insert(index + 1, [f'=> {month}', cumulative_sums[month], ""])
+                else:
+                    tableau_huitaine_cerp.insert(index + 1, [f'=> {month}', cumulative_sums[month], ""])
+
+    for huitaine in tableau_huitaine_cerp:
+        if isinstance(huitaine[map_colonnes["Huitaine"]], date):
+            huitaine[map_colonnes["Huitaine"]] = huitaine[map_colonnes["Huitaine"]].strftime("%d/%m/%Y")
+
+    return tableau_huitaine_cerp, colonnes
 
 
 # -----------------------------------

@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from math import ceil
 from .constants import DL_FOLDER_PATH_AUTO
 from .models import Constante
@@ -30,7 +30,7 @@ def telecharger_fichier_cerp(driver, first_date, last_date):
 
         # Vérifier si l'alerte 500 est présente pendant l'attente explicite
         try:
-            error_popup = WebDriverWait(driver, 80).until(
+            error_popup = WebDriverWait(driver, 80).until(  # noqa: F841
                 EC.presence_of_element_located((By.XPATH, '//div[@role="alert" and contains(text(), "500")]'))
             )
 
@@ -49,7 +49,7 @@ def telecharger_fichier_cerp(driver, first_date, last_date):
 
         
         WebDriverWait(driver, 5).until(lambda driver: len(os.listdir(DL_FOLDER_PATH_AUTO)) > len(prev_files_list))
-        logger.error(f'Téléchargement terminé')
+        logger.error('Téléchargement terminé')
 
         for fichier in os.listdir(DL_FOLDER_PATH_AUTO):
             if fichier not in prev_files_list:
@@ -69,7 +69,7 @@ def telecharger_fichier_cerp(driver, first_date, last_date):
     return success, faulty_range
 
 
-def process_page_cerp(driver):
+def process_page_cerp(driver, index_date):
 
     time.sleep(2)
 
@@ -94,14 +94,14 @@ def process_page_cerp(driver):
             row_data = [cell.text for cell in row.find_elements(By.TAG_NAME, "td")]
 
             if last_date is None:
-                last_date = datetime.strptime(row_data[8], '%d/%m/%Y')
-            elif datetime.strptime(row_data[8], '%d/%m/%Y') > last_date:
-                last_date = datetime.strptime(row_data[8], '%d/%m/%Y')
+                last_date = datetime.strptime(row_data[index_date], '%d/%m/%Y')
+            elif datetime.strptime(row_data[index_date], '%d/%m/%Y') > last_date:
+                last_date = datetime.strptime(row_data[index_date], '%d/%m/%Y')
 
             if first_date is None:
-                first_date = datetime.strptime(row_data[8], '%d/%m/%Y')
-            elif datetime.strptime(row_data[8], '%d/%m/%Y') < first_date:
-                first_date = datetime.strptime(row_data[8], '%d/%m/%Y')
+                first_date = datetime.strptime(row_data[index_date], '%d/%m/%Y')
+            elif datetime.strptime(row_data[index_date], '%d/%m/%Y') < first_date:
+                first_date = datetime.strptime(row_data[index_date], '%d/%m/%Y')
 
         logger.error(f'{first_date} au {last_date}')
 
@@ -122,7 +122,7 @@ def process_page_cerp(driver):
         logger.error(f'success : {success}')
     
     except IndexError:
-        logger.error(f'Aucune facture à traiter')
+        logger.error('Aucune facture à traiter')
         success = True
 
     return success, faulty_range
@@ -203,13 +203,13 @@ def main_cerp():
     total_pages = ceil(total_lignes / 200)
 
     #traitement page 1
-    logger.error('traitement de la page 1')
-    success, faulty_range = process_page_cerp(driver)
+    logger.error('traitement de la page 1 Factures')
+    success, faulty_range = process_page_cerp(driver, 8)
 
     for page in range(2, total_pages + 1):
 
         if not success:
-            if not faulty_range is None:
+            if faulty_range is not None:
                 logger.error(f'Erreur de traitement de la plage de dates suivante : {faulty_range}')
             else:
                 logger.error('Erreur inconnue, plage de dates non retournée par le programme.')
@@ -221,7 +221,71 @@ def main_cerp():
         driver.execute_script("arguments[0].click();", button_right)
 
         logger.error(f'traitement de la page {page}')
-        success, faulty_range = process_page_cerp(driver)
+        success, faulty_range = process_page_cerp(driver, 8)
+
+    # PARTIE RELEVES -----------------------------------
+
+    try:
+        statements_tab = driver.find_element(By.XPATH, '//div[contains(@class, "v-list-item__title")]//span[contains(text(), "Relevés émis")]')
+        statements_tab.click()
+    except:  # noqa: E722
+        show_sidebar = driver.find_element(By.XPATH, '//button[contains(@class, "v-app-bar__nav-icon")]')
+        show_sidebar.click()
+        time.sleep(1)
+        statements_tab = driver.find_element(By.XPATH, '//div[contains(@class, "v-list-item__title")]//span[contains(text(), "Relevés émis")]')
+        statements_tab.click()
+
+    time.sleep(3)
+
+    WebDriverWait(driver, 3).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'div.v-data-table__wrapper'))
+    )
+    time.sleep(1)
+
+    input_date = driver.find_element(By.XPATH, '//input[@data-type="date" and @id="if-Date"]')
+    date_fin = datetime.now() + timedelta(days=1)
+    date_range = f'>{LAST_IMPORT_DATE.strftime("%d/%m/%Y")} & <{date_fin.strftime("%d/%m/%Y")}'
+    input_date.send_keys(date_range)
+
+    logger.error(f'CERP date range : {date_range}')
+
+    time.sleep(1)
+
+    selecteur_nb = driver.find_element(By.XPATH, '//div[contains(@class, "v-select__selection v-select__selection--comma") and contains(text(), "50")]')
+    selecteur_nb.click()
+    WebDriverWait(driver, 3).until(
+        EC.presence_of_element_located((By.XPATH, '//div[@class="v-list-item__title" and contains(text(), "200")]'))
+    )
+    nb_element = driver.find_element(By.XPATH, '//div[@class="v-list-item__title" and contains(text(), "200")]')
+    nb_element.click()
+    
+    time.sleep(2)
+
+    compte_pages = driver.find_element(By.CSS_SELECTOR, 'span.mx-2')
+    span_text = compte_pages.text
+    total_lignes = int(span_text.split()[-1])
+    total_pages = ceil(total_lignes / 200)
+
+    #traitement page 1
+    logger.error('traitement de la page 1 Relevés')
+    success, faulty_range = process_page_cerp(driver, 6)
+
+    for page in range(2, total_pages + 1):
+
+        if not success:
+            if faulty_range is not None:
+                logger.error(f'Erreur de traitement de la plage de dates suivante : {faulty_range}')
+            else:
+                logger.error('Erreur inconnue, plage de dates non retournée par le programme.')
+            logger.error("Fin du programme et suppression des fichiers")
+            supprimer_fichiers_dossier(DL_FOLDER_PATH_AUTO, "CERP_SAE")
+            break
+
+        button_right = driver.find_element(By.CSS_SELECTOR, 'i.v-icon.notranslate.ci.ci-chevron_right.theme--light.black--text[aria-hidden="true"]')
+        driver.execute_script("arguments[0].click();", button_right)
+
+        logger.error(f'traitement de la page {page}')
+        success, faulty_range = process_page_cerp(driver, 6)
     
     driver.quit()
     
