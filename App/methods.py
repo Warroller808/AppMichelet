@@ -2158,14 +2158,18 @@ def generer_tableau_eg():
 # -----------------------------------
 
 
-def mois_annees_tab_alliance(map_colonnes):
+def mois_annees_tab_alliance(map_colonnes, filtre_annee, filtre_mois):
     tableau = []
     mois_annees = []
 
     data_mois_annees = (
         Releve_alliance.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .filter(annee__gte = 2022)
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
         .values('mois', 'annee')
     )
 
@@ -2181,7 +2185,7 @@ def mois_annees_tab_alliance(map_colonnes):
     return tableau
 
 
-def generer_tableau_alliance(show_decades):
+def generer_tableau_alliance(show_decades, filtre_annee, filtre_mois):
     colonnes = [
         "Mois/Année",
         "Montant grossiste",
@@ -2193,12 +2197,16 @@ def generer_tableau_alliance(show_decades):
     ]
 
     map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
-    tableau_alliance = mois_annees_tab_alliance(map_colonnes)
+    tableau_alliance = mois_annees_tab_alliance(map_colonnes, filtre_annee, filtre_mois)
 
     releves = (
         Releve_alliance.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
-        .filter(annee__gte = 2022)
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
         .values('mois', 'annee')
         .annotate(
             net_a_payer=Sum('net_a_payer'),
@@ -2222,22 +2230,27 @@ def generer_tableau_alliance(show_decades):
                 ligne[map_colonnes["Facturation services"]] = round(entry['facturation_services'], 2)
 
     tableau_alliance = quicksort_tableau(tableau_alliance)
-    tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
+    if filtre_mois.children == []:
+        tableau_alliance = totaux_pourcentages_par_annee(tableau_alliance, colonnes, map_colonnes)
 
     if show_decades:
-        tableau_alliance = ajouter_decades(tableau_alliance, map_colonnes)
+        tableau_alliance = ajouter_decades(tableau_alliance, map_colonnes, filtre_annee, filtre_mois)
 
     return tableau_alliance, colonnes
 
 
-def ajouter_decades(tableau_alliance, map_colonnes):
+def ajouter_decades(tableau_alliance, map_colonnes, filtre_annee, filtre_mois):
     
     tableau_decades = []
 
     releves = (
         Releve_alliance.objects
-        .annotate(annee=ExtractYear('date'))
-        .filter(annee__gte = 2022)
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
     )
 
     for entry in releves:
@@ -2273,7 +2286,5 @@ def ajouter_decades(tableau_alliance, map_colonnes):
             tableau_merged[-1][0] = "=> " + tableau_merged[-1][0]
         else:
             tableau_merged.append(mois)
-
-        print(tableau_merged)
             
     return tableau_merged

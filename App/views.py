@@ -590,13 +590,58 @@ def tableau_alliance(request):
     print("GET parameters:", request.GET)
 
     show_decades = request.GET.get('decades_value', 'on') == 'on'
-    tableau_alliance, colonnes = generer_tableau_alliance(show_decades)
+
+    data_annees = (
+        Releve_alliance.objects
+        .annotate(annee=ExtractYear('date'))
+        .filter(annee__gte = 2022)
+        .values('annee')
+        .distinct()
+    )
+    annees = [str(element['annee']) for element in data_annees]
+    annees = ["Tous"] + quicksort_liste(annees)
+    annee_selectionnee = request.GET.get('annee', '')
+
+    if not annee_selectionnee and annees:
+        annee_selectionnee = "Tous"
+
+    filtre_annee = Q()
+    if annee_selectionnee != "Tous":
+        filtre_annee = Q(annee=annee_selectionnee)
+
+    data_mois = (
+        Releve_alliance.objects
+        .annotate(annee=ExtractYear('date'), mois=ExtractMonth('date'))
+        .filter(
+            filtre_annee,
+            annee__gte = 2022,
+        )
+        .values('mois')
+        .distinct()
+    )
+    
+    mois = [str(element['mois']) for element in data_mois]
+    mois = ["Tous"] + [str(intelement) for intelement in quicksort_liste([int(strelement) for strelement in mois])]
+    mois_selectionne = request.GET.get('mois', '')
+
+    if not mois_selectionne and mois:
+        mois_selectionne = "Tous"
+
+    filtre_mois = Q()
+    if mois_selectionne != "Tous":
+        filtre_mois = Q(mois=mois_selectionne)
+
+    tableau_alliance, colonnes = generer_tableau_alliance(show_decades, filtre_annee, filtre_mois)
 
     return render(request, 'index_tableau_alliance.html', {
         'tableau_alliance': tableau_alliance,
         'colonnes': colonnes,
         'dernier_import_digi' : dernier_import_digi,
         'show_decades': show_decades,
+        'annees': annees,
+        'annee_selectionnee': annee_selectionnee,
+        'mois': mois,
+        'mois_selectionne': mois_selectionne,
     })
 
 

@@ -24,6 +24,20 @@
             <input type="checkbox" name="decades" id="decades" {% if show_decades %}checked{% endif %}>
 
             <input type="hidden" name="decades_value" id="decades_value" value="{{ show_decades|yesno:'on,off' }}">
+            <br><br>
+            <label for="annee">Sélectionnez une année :</label>
+            <select name="annee" id="annee">
+                {% for an in annees %}
+                    <option value="{{ an }}" {% if an == annee_selectionnee %}selected{% endif %}>{{ an }}</option>
+                {% endfor %}
+            </select>
+            <br><br>
+            <label for="mois">Sélectionnez un mois :</label>
+            <select name="mois" id="mois">
+                {% for mo in mois %}
+                    <option value="{{ mo }}" {% if mo == mois_selectionne %}selected{% endif %}>{{ mo }}</option>
+                {% endfor %}
+            </select>
         </form>
 
         {% if tableau_alliance %}
@@ -68,6 +82,14 @@
         document.getElementById('decades').addEventListener('change', function() {
             // Met à jour la valeur du champ caché avant de soumettre le formulaire
             document.getElementById('decades_value').value = this.checked ? 'on' : 'off';
+            document.getElementById('filter-form').submit();
+        });
+        document.getElementById('mois').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
+            document.getElementById('filter-form').submit();
+        });
+        document.getElementById('annee').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
             document.getElementById('filter-form').submit();
         });
     </script>
