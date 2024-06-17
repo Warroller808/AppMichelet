@@ -515,6 +515,7 @@ class Command(BaseCommand):
             if "AVOIR" in achat.fournisseur:
                     prev_nb = achat.nb_boites
                     achat.nb_boites = achat.nb_boites * Decimal(-1)
+                    achat.save()
                     print(achat.fournisseur, achat.montant_ht, prev_nb, achat.nb_boites)
 
         print("Done")
