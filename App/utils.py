@@ -956,7 +956,9 @@ def calculer_remise_theorique(produit: Produit_catalogue, nouvel_achat: Achat):
                     nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(remise), 4)
             else:
                 remise = choix_remise_grossiste(produit, nouvel_achat.categorie, nouvel_achat.nb_boites)
-                if remise < 1:
+                if remise < 0:
+                    nouvel_achat.remise_theorique_totale = round(Decimal(remise), 4)
+                elif remise < 1:
                     #remise classique en %
                     nouvel_achat.remise_theorique_totale = round(Decimal(nouvel_achat.montant_ht_hors_remise) * Decimal(remise), 4)
                 else:
