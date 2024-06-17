@@ -1882,13 +1882,28 @@ def traitement_ratrappage_remises_teva(tableau, map_colonnes):
             tableau[ligne][map_colonnes["TOTAL REMISE OBTENUE HT (HORS 0%)"]] = ""
             tableau[ligne][map_colonnes["% REMISE THEORIQUE"]] = ""
             tableau[ligne][map_colonnes["% REMISE OBTENUE"]] = ""
-            tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
-                Decimal(0.17) * (tableau[ligne][map_colonnes["GROSSISTE 0% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 0% MONTANT HT"]])
-                + (Decimal(0.17) - Decimal(0.025)) * (tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.1)) * (tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.2)) * (tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]])
-                + (Decimal(0.4) - Decimal(0.3)) * (tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]])
-            , 2)
+            if int(tableau[ligne][map_colonnes["Mois/Année"]][:-5]) % 3 == 0:
+                # tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
+                #     Decimal(0.17) * (tableau[ligne][map_colonnes["GROSSISTE 0% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 0% MONTANT HT"]])
+                #     + (Decimal(0.17) - Decimal(0.025)) * (tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]])
+                #     + (Decimal(0.4) - Decimal(0.1)) * (tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]])
+                #     + (Decimal(0.4) - Decimal(0.2)) * (tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]])
+                #     + (Decimal(0.4) - Decimal(0.3)) * (tableau[ligne][map_colonnes["GROSSISTE 30% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 30% MONTANT HT"]])
+                # , 2)
+                tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = round(
+                    (Decimal(0.195) - Decimal(0.025)) * (tableau[ligne][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 2,5% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.1)) * (tableau[ligne][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 10% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.2)) * (tableau[ligne][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne][map_colonnes["DIRECT 20% MONTANT HT"]])
+                    + (Decimal(0.195) - Decimal(0.025)) * (tableau[ligne - 1][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne - 1][map_colonnes["DIRECT 2,5% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.1)) * (tableau[ligne - 1][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne - 1][map_colonnes["DIRECT 10% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.2)) * (tableau[ligne - 1][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne - 1][map_colonnes["DIRECT 20% MONTANT HT"]])
+                    + (Decimal(0.195) - Decimal(0.025)) * (tableau[ligne - 2][map_colonnes["GROSSISTE 2,5% MONTANT HT"]] + tableau[ligne - 2][map_colonnes["DIRECT 2,5% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.1)) * (tableau[ligne - 2][map_colonnes["GROSSISTE 10% MONTANT HT"]] + tableau[ligne - 2][map_colonnes["DIRECT 10% MONTANT HT"]])
+                    + (Decimal(0.3) - Decimal(0.2)) * (tableau[ligne - 2][map_colonnes["GROSSISTE 20% MONTANT HT"]] + tableau[ligne - 2][map_colonnes["DIRECT 20% MONTANT HT"]])
+                , 2)
+            else:
+                tableau[ligne][map_colonnes["RATTRAPAGE THEORIQUE"]] = 0
+
             tableau[ligne][map_colonnes["RATTRAPAGE OBTENU"]] = "NA"
 
     return tableau
