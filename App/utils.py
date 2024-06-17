@@ -799,9 +799,9 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                 new_categorie = "UPP"
             elif remise_pourcent > 0:
                 new_categorie = "REMISE SUR FACTURE"
-            elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht < 450:
+            elif (tva > 0.0209 and tva < 0.0211) and abs(prix_unitaire_ht) < 450:
                 new_categorie = "<450€ tva 2,1%"
-            elif (tva > 0.0209 and tva < 0.0211) and prix_unitaire_ht >= 450:
+            elif (tva > 0.0209 and tva < 0.0211) and abs(prix_unitaire_ht) >= 450:
                 new_categorie = ">450€ tva 2,1%"
             elif (tva > 0.0549 and tva < 0.0551) or (tva > 0.099 and tva < 0.101):
                 new_categorie = "NON CATEGORISE CERP 5,5 OU 10"
