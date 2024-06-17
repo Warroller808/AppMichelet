@@ -184,7 +184,7 @@ def process_tables(format, tables_page):
                 if re.match(re.compile(format_facture.regex_ligne_table), ligne_sans_none[0]):
 
                         donnees_ligne = []
-                        multiplicateur = 1 if format_facture.format != "AVOIR CERP" else -1
+                        multiplicateur = 1 if (format_facture.format != "AVOIR CERP" and format_facture.format != "AVOIR TEVA") else -1
                         multiplicateur_teva = 1 if format_facture.format != "AVOIR TEVA" else -1
 
                         try:
@@ -210,7 +210,7 @@ def process_tables(format, tables_page):
 
                             if format_facture.indice_nb_boites != -1:
                                 if ligne_sans_none[format_facture.indice_nb_boites] != "":
-                                    donnees_ligne.append(multiplicateur_teva * int(ligne_sans_none[format_facture.indice_nb_boites]))
+                                    donnees_ligne.append(multiplicateur * multiplicateur_teva * int(ligne_sans_none[format_facture.indice_nb_boites]))
                                 else: 
                                     donnees_ligne.append(0)
                             else: 

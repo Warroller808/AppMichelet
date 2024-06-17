@@ -501,3 +501,20 @@ class Command(BaseCommand):
     def test_import_selenium():
         from .jobs import import_factures_auto
         return import_factures_auto()
+    
+
+    def negative_qtys():
+        #set negative qtys for avoirs
+        from decimal import Decimal
+
+        achats = Achat.objects.all()
+
+        prev_nb = 0
+
+        for achat in achats:
+            if "AVOIR" in achat.fournisseur:
+                    prev_nb = achat.nb_boites
+                    achat.nb_boites = achat.nb_boites * Decimal(-1)
+                    print(achat.fournisseur, achat.montant_ht, prev_nb, achat.nb_boites)
+
+        print("Done")
