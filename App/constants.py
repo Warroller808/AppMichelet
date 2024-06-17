@@ -151,3 +151,8 @@ OTC = [
     "OMEGA 3 EG",
     "PANTOPRAZOLE EG"
 ]
+
+
+SPECIAL_CASES = {
+    "HUMIRA": "<450€ tva 2,1%",
+}

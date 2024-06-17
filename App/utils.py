@@ -756,7 +756,7 @@ def determiner_type(designation):
 
 
 def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_pourcent, coalia, generique, marche_produits, pharmupp, lpp):
-    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES, NON_REMBOURSABLES, OTC
+    from .constants import LABORATOIRES_GENERIQUES, MARCHES_PRODUITS, NON_GENERIQUES, NON_REMBOURSABLES, OTC, SPECIAL_CASES
     
     new_categorie = ""
     
@@ -831,6 +831,11 @@ def categoriser_achat(designation, fournisseur, tva, prix_unitaire_ht, remise_po
                 new_categorie = "NON CATEGORISE DIRECT"
         else:
             new_categorie = "NON CATEGORISE"
+
+        for key in SPECIAL_CASES:
+            if key in designation:
+                new_categorie = SPECIAL_CASES[key]
+                break
 
     except Exception as e:
         logger.error(f'L\'achat du produit {designation} avec remise pourcent {remise_pourcent} n\'a pas été catégorisé : {e}')
