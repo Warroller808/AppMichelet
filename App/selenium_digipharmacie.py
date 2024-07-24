@@ -7,13 +7,10 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import WebDriverException, TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
-from datetime import date, datetime, timedelta
-from math import ceil
+from datetime import datetime, timedelta
 from .constants import DL_FOLDER_PATH_AUTO
 from .models import Constante
-from .utils import supprimer_fichiers_dossier
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +63,7 @@ def export_factures(driver, first_date, last_date):
         
         WebDriverWait(driver, 60).until(lambda driver: len(os.listdir(DL_FOLDER_PATH_AUTO)) > len(prev_files_list))
         time.sleep(3)
-        logger.error(f'Téléchargement terminé')
+        logger.error('Téléchargement terminé')
 
         for fichier in os.listdir(DL_FOLDER_PATH_AUTO):
             if fichier not in prev_files_list:
@@ -90,11 +87,9 @@ def export_factures(driver, first_date, last_date):
 def main_digi():
 
     LAST_IMPORT_DATE = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE")
-    LISTE_FOURNISSEURS = ["Teva", "Arrow", "All"]
-    LISTE_LABORATOIRES = ["Biogaran", "Eg labo"]
+    LISTE_FOURNISSEURS = ["Teva", "Arrow", "Alliance", "BIOGARAN", "EG LABO"]
 
-    success_fournisseurs = False
-    success_laboratoires = False
+    success = False
 
     if LAST_IMPORT_DATE:
         LAST_IMPORT_DATE = datetime.strptime(LAST_IMPORT_DATE.value, '%d/%m/%Y')
@@ -151,24 +146,27 @@ def main_digi():
         )
         time.sleep(1)
 
-        filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-        filtre.click()
+        try:
+            effacer_filtres = driver.find_element(By.XPATH, "//span[text()='Effacer les filtres']")
+            driver.execute_script("arguments[0].click();", effacer_filtres)
+        except:  # noqa: E722
+            print("no filter")
 
         time.sleep(1)
 
-        emission = driver.find_element(By.XPATH, '//div[contains(text(), "Émission")]')
+        emission = driver.find_element(By.XPATH, '//span[contains(text(), "Date d\'émission")]')
         driver.execute_script("arguments[0].click();", emission)
 
         time.sleep(1)
 
-        input_start_date = driver.find_element(By.NAME, 'start_date_id')
+        input_start_date = driver.find_element(By.NAME, 'Depuis')
         if LAST_IMPORT_DATE < datetime.now().replace(hour=0, minute=0, second=0, microsecond=0):
             start_date = (LAST_IMPORT_DATE + timedelta(days=1)).strftime("%d/%m/%Y")
         else:
             start_date = datetime.now().strftime("%d/%m/%Y")
         input_start_date.send_keys(start_date)
 
-        input_end_date = driver.find_element(By.NAME, 'end_date_id')
+        input_end_date = driver.find_element(By.NAME, 'Jusqu\'àu')
         end_date = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
         input_end_date.send_keys(end_date)
 
@@ -176,37 +174,29 @@ def main_digi():
 
         time.sleep(2)
 
-        filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-        filtre.click()
-
-        time.sleep(2)
-
-        fournisseurs = driver.find_element(By.XPATH, "//div[@role='tooltip']//div//div[text()='Fournisseur']")
+        fournisseurs = driver.find_element(By.XPATH, "//span[text()='Fournisseurs']")
         driver.execute_script("arguments[0].click();", fournisseurs)
 
         time.sleep(2)
 
-        logger.error(f'Début boucle sur les fournisseurs')
+        logger.error('Début boucle sur les fournisseurs')
 
         for i in range(len(LISTE_FOURNISSEURS)):
-            logger.error(f"Traitement du fournisseur {LISTE_FOURNISSEURS[i]}")
+            logger.error(f"Ajout du fournisseur/labo {LISTE_FOURNISSEURS[i]}")
 
-            input_fournisseurs = driver.find_element(By.XPATH, "//input[@id='providers-filled']")
+            input_fournisseurs = driver.find_element(By.XPATH, "//input[@name='Fournisseur']")
+            driver.execute_script("arguments[0].value = '';", input_fournisseurs)
             input_fournisseurs.send_keys(LISTE_FOURNISSEURS[i])
             time.sleep(1)
-            popper = driver.find_element(By.CSS_SELECTOR, 'div.MuiAutocomplete-popper')
-            if LISTE_FOURNISSEURS[i] != "All":
-                labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_FOURNISSEURS[i]}']]")
-            else:
-                labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='Alliance']]")
+            labo_trouve = driver.find_element(By.XPATH, f"//div[@class='ListItem']//div[text()='{LISTE_FOURNISSEURS[i]}']")
             time.sleep(1)
             driver.execute_script("arguments[0].click();", labo_trouve)
             time.sleep(1)
 
-        logger.error(f'Fin boucle sur les fournisseurs')
+        logger.error('Fin boucle sur les fournisseurs')
 
-        filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-        filtre.click()
+        fournisseurs = driver.find_element(By.XPATH, "//span[text()='Fournisseurs']")
+        driver.execute_script("arguments[0].click();", fournisseurs)
 
         time.sleep(1)
 
@@ -214,100 +204,15 @@ def main_digi():
         logger.error(f'Nombre de factures : {nombre_factures}')
 
         if nombre_factures != "-":
-            success_fournisseurs = export_factures(driver, start_date, end_date)
+            success = export_factures(driver, start_date, end_date)
         else:
-            success_laboratoires = True
+            success = True
 
     except Exception as e:
         logger.error(f'Erreur lors du traitement des factures fournisseurs : {e}')
-        
-    time.sleep(2)
-
-    try:
-
-        for i in range(len(LISTE_LABORATOIRES)):
-            logger.error(f"Traitement du laboratoire {LISTE_LABORATOIRES[i]}")
-
-            try:
-                effacer_filtres = driver.find_element(By.XPATH, '//span[@data-category="Effacer les filtres"]')
-                effacer_filtres.click()
-            except:
-                filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-                filtre.click()
-                time.sleep(1)
-                effacer_filtres = driver.find_element(By.XPATH, '//span[@data-category="Effacer les filtres"]')
-                effacer_filtres.click()
-
-            time.sleep(1)
-
-            filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-            filtre.click()
-
-            time.sleep(1)
-
-            emission = driver.find_element(By.XPATH, '//div[contains(text(), "Émission")]')
-            driver.execute_script("arguments[0].click();", emission)
-
-            time.sleep(1)
-
-            input_start_date = driver.find_element(By.NAME, 'start_date_id')
-            if LAST_IMPORT_DATE < datetime.now().replace(hour=0, minute=0, second=0, microsecond=0):
-                start_date = (LAST_IMPORT_DATE + timedelta(days=1)).strftime("%d/%m/%Y")
-            else:
-                start_date = datetime.now().strftime("%d/%m/%Y")
-            input_start_date.send_keys(start_date)
-
-            input_end_date = driver.find_element(By.NAME, 'end_date_id')
-            end_date = (datetime.now() + timedelta(days=1)).strftime("%d/%m/%Y")
-            input_end_date.send_keys(end_date)
-
-            time.sleep(2)
-
-            filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-            filtre.click()
-
-            time.sleep(2)
-
-            laboratoire = driver.find_element(By.XPATH, "//div[@role='tooltip']//div//div[text()='Laboratoire']")
-            driver.execute_script("arguments[0].click();", laboratoire)
-
-            time.sleep(2)
-
-            input_laboratoires = driver.find_element(By.XPATH, "//input[@id='providers-filled']")
-            time.sleep(2)
-            input_laboratoires.send_keys(LISTE_LABORATOIRES[i])
-            time.sleep(1)
-            popper = driver.find_element(By.CSS_SELECTOR, 'div.MuiAutocomplete-popper')
-            labo_trouve = popper.find_element(By.XPATH, f"//li//div//div[div[text()='{LISTE_LABORATOIRES[i]}']]")
-            time.sleep(1)
-            driver.execute_script("arguments[0].click();", labo_trouve)
-            time.sleep(1)
-
-            filtre = driver.find_element(By.CSS_SELECTOR, 'span[data-category="Filtrer"]')
-            filtre.click()
-
-            time.sleep(1)
-
-            nombre_factures = driver.find_element(By.XPATH, '//div[contains(text(), "Factures et Avoirs")]/following-sibling::div').text
-            logger.error(f'Nombre de factures : {nombre_factures}')
-
-            time.sleep(1)
-
-            if nombre_factures != "-":
-                success_laboratoires = export_factures(driver, start_date, end_date)
-            else:
-                success_laboratoires = True
-            
-            time.sleep(2)
-        
-    except Exception as e:
-        logger.error(f'Erreur lors du traitement des factures laboratoires : {e}')
     
     time.sleep(2)
 
     driver.quit()
 
-    if not success_fournisseurs and not success_laboratoires:
-        return False
-    else:
-        return True
+    return success

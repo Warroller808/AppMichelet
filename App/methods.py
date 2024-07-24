@@ -1500,7 +1500,7 @@ def generer_tableau_simplifie(mois_annee, data_dict):
 
 # -----------------------------------
 
-# -------- TABLEAU GENERIQUES ------- 
+# -------- TABLEAU HUITAINE CERP ----
 
 # -----------------------------------
 
@@ -1510,7 +1510,7 @@ def base_tableau_huitaine_cerp(map_colonnes, filtre_annee, filtre_mois):
     mois_annees = []
 
     data_mois_annees = (
-        Releve_alliance.objects
+        Releve_CERP.objects
         .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
         .filter(
             filtre_annee,
@@ -2405,3 +2405,98 @@ def ajouter_decades(tableau_alliance, map_colonnes, filtre_annee, filtre_mois):
             tableau_merged.append(mois)
             
     return tableau_merged
+
+
+# -----------------------------------
+
+# -------- TABLEAU CERP + ALLIANCE --
+
+# -----------------------------------
+
+
+def mois_annees_tab_cerp_alliance(map_colonnes, filtre_annee, filtre_mois):
+    tableau = []
+    mois_annees = []
+
+    data_mois_annees = (
+        Achat.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
+        .values('mois', 'annee')
+    )
+
+    for entry in data_mois_annees:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        if mois_annee not in mois_annees:
+            mois_annees.append(mois_annee)
+
+    for ma in mois_annees:
+        nouvelle_ligne = [ma] + [0] * (len(map_colonnes) - 1)
+        tableau.append(nouvelle_ligne)
+
+    return tableau
+
+
+def generer_tableau_cerp_alliance(filtre_annee, filtre_mois):
+    colonnes = [
+        "Mois/Année",
+        "Montant CERP (Total TTC)",
+        "Montant Alliance (Net à payer)",
+        "TOTAL",
+    ]
+
+    map_colonnes = {colonne: i for i, colonne in enumerate(colonnes)}
+    tableau_cerp_alliance = mois_annees_tab_cerp_alliance(map_colonnes, filtre_annee, filtre_mois)
+
+    releves_cerp = (
+        Releve_CERP.objects
+        .annotate(mois=ExtractMonth('huitaine'), annee=ExtractYear('huitaine'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
+        .values('mois', 'annee')
+        .annotate(
+            total_ttc=Sum('total_ttc')
+        )
+    )
+
+    releves_alliance = (
+        Releve_alliance.objects
+        .annotate(mois=ExtractMonth('date'), annee=ExtractYear('date'))
+        .filter(
+            filtre_annee,
+            filtre_mois,
+            annee__gte = 2022,
+        )
+        .values('mois', 'annee')
+        .annotate(
+            net_a_payer=Sum('net_a_payer'),
+        )
+    )
+
+    for entry in releves_cerp:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_cerp_alliance:
+            if ligne[0] == mois_annee:
+                ligne[map_colonnes["Montant CERP (Total TTC)"]] = round(entry['total_ttc'], 2)
+
+    for entry in releves_alliance:
+        mois_annee = f"{entry['mois']}/{entry['annee']}"
+        for ligne in tableau_cerp_alliance:
+            if ligne[0] == mois_annee:
+                ligne[map_colonnes["Montant Alliance (Net à payer)"]] = round(entry['net_a_payer'], 2)
+
+    for ligne in tableau_cerp_alliance:
+        ligne[map_colonnes["TOTAL"]] = ligne[map_colonnes["Montant CERP (Total TTC)"]] + ligne[map_colonnes["Montant Alliance (Net à payer)"]]
+
+    tableau_cerp_alliance = quicksort_tableau(tableau_cerp_alliance)
+    if filtre_mois.children == []:
+        tableau_alliance = totaux_pourcentages_par_annee(tableau_cerp_alliance, colonnes, map_colonnes)
+
+    return tableau_alliance, colonnes

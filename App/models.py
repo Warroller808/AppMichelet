@@ -499,8 +499,11 @@ class Command(BaseCommand):
 
 
     def test_import_selenium():
-        from .jobs import import_factures_auto
-        return import_factures_auto()
+        # from .jobs import import_factures_auto
+        # return import_factures_auto()
+
+        from .selenium_digipharmacie import main_digi
+        return main_digi()
     
 
     def negative_qtys():

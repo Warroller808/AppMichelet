@@ -10,7 +10,7 @@ import logging
 import pandas as pd
 from .methods import handle_uploaded_facture, process_factures, telecharger_excel
 from .methods import generer_tableau_alliance, generer_tableau_eg, generer_tableau_generiques, generer_tableau_grossiste, generer_tableau_simplifie, generer_tableau_huitaine_cerp
-from .methods import generer_tableau_synthese, generer_tableau_teva, data_dict_tab_simplifie, data_dict_tab_simplifie_full_year
+from .methods import generer_tableau_synthese, generer_tableau_teva, generer_tableau_cerp_alliance, data_dict_tab_simplifie, data_dict_tab_simplifie_full_year
 from .utils import quicksort_liste
 from .models import Achat, Produit_catalogue, Constante, Releve_alliance, Releve_CERP
 from .tasks import async_import_factures_depuis_dossier
@@ -700,6 +700,68 @@ def tableau_alliance(request):
         'colonnes': colonnes,
         'dernier_import_digi' : dernier_import_digi,
         'show_decades': show_decades,
+        'annees': annees,
+        'annee_selectionnee': annee_selectionnee,
+        'mois': mois,
+        'mois_selectionne': mois_selectionne,
+    })
+
+
+@login_required
+def tableau_cerp_alliance(request):
+
+    dernier_import_cerp = Constante.objects.get(pk="LAST_IMPORT_DATE_CERP").value
+    dernier_import_digi = Constante.objects.get(pk="LAST_IMPORT_DATE_DIGIPHARMACIE").value
+
+    print("GET parameters:", request.GET)
+
+    data_annees = (
+        Releve_alliance.objects
+        .annotate(annee=ExtractYear('date'))
+        .filter(annee__gte = 2022)
+        .values('annee')
+        .distinct()
+    )
+    annees = [str(element['annee']) for element in data_annees]
+    annees = ["Tous"] + quicksort_liste(annees)
+    annee_selectionnee = request.GET.get('annee', '')
+
+    if not annee_selectionnee and annees:
+        annee_selectionnee = "Tous"
+
+    filtre_annee = Q()
+    if annee_selectionnee != "Tous":
+        filtre_annee = Q(annee=annee_selectionnee)
+
+    data_mois = (
+        Releve_alliance.objects
+        .annotate(annee=ExtractYear('date'), mois=ExtractMonth('date'))
+        .filter(
+            filtre_annee,
+            annee__gte = 2022,
+        )
+        .values('mois')
+        .distinct()
+    )
+    
+    mois = [str(element['mois']) for element in data_mois]
+    mois = ["Tous"] + [str(intelement) for intelement in quicksort_liste([int(strelement) for strelement in mois])]
+    mois_selectionne = request.GET.get('mois', '')
+
+    if not mois_selectionne and mois:
+        mois_selectionne = "Tous"
+
+    filtre_mois = Q()
+    if mois_selectionne != "Tous":
+        filtre_mois = Q(mois=mois_selectionne)
+
+    tableau_alliance, colonnes = generer_tableau_cerp_alliance(filtre_annee, filtre_mois)
+
+    return render(request, 'index_tableau_cerp_alliance.html', {
+        'tableau_cerp_alliance': tableau_alliance,
+        'colonnes': colonnes,
+        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_digi' : dernier_import_digi,
         'annees': annees,
         'annee_selectionnee': annee_selectionnee,
         'mois': mois,
