@@ -516,6 +516,8 @@ def tableau_huitaine_cerp(request):
 
     print("GET parameters:", request.GET)
 
+    show_decades = request.GET.get('decades_value', 'on') == 'on'
+
     data_annees = (
         Releve_CERP.objects
         .annotate(annee=ExtractYear('huitaine'))
@@ -556,12 +558,13 @@ def tableau_huitaine_cerp(request):
     if mois_selectionne != "Tous":
         filtre_mois = Q(mois=mois_selectionne)
 
-    tableau_huitaine_cerp, colonnes = generer_tableau_huitaine_cerp(filtre_annee, filtre_mois)
+    tableau_huitaine_cerp, colonnes = generer_tableau_huitaine_cerp(show_decades, filtre_annee, filtre_mois)
 
     return render(request, 'index_tableau_huitaine_cerp.html', {
         'tableau_huitaine_cerp': tableau_huitaine_cerp,
         'colonnes': colonnes,
-        'dernier_import_cerp' : dernier_import_cerp,
+        'dernier_import_cerp': dernier_import_cerp,
+        'show_decades': show_decades,
         'annees': annees,
         'annee_selectionnee': annee_selectionnee,
         'mois': mois,

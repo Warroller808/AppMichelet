@@ -20,6 +20,10 @@
             Dernier import CERP : {{ dernier_import_cerp }}
         </h5>
         <form method="get" action="\tableau_huitaine_cerp\" id="filter-form">
+            <label for="decades">Afficher les décades:</label>
+            <input type="checkbox" name="decades" id="decades" {% if show_decades %}checked{% endif %}>
+            <input type="hidden" name="decades_value" id="decades_value" value="{{ show_decades|yesno:'on,off' }}">
+            <br><br>
             <label for="annee">Sélectionnez une année :</label>
             <select name="annee" id="annee">
                 {% for an in annees %}
@@ -74,6 +78,11 @@
     </div>
 
     <script>
+        document.getElementById('decades').addEventListener('change', function() {
+            // Met à jour la valeur du champ caché avant de soumettre le formulaire
+            document.getElementById('decades_value').value = this.checked ? 'on' : 'off';
+            document.getElementById('filter-form').submit();
+        });
         document.getElementById('mois').addEventListener('change', function() {
             // Met à jour la valeur du champ caché avant de soumettre le formulaire
             document.getElementById('filter-form').submit();

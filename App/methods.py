@@ -1532,7 +1532,7 @@ def base_tableau_huitaine_cerp(map_colonnes, filtre_annee, filtre_mois):
     return tableau
 
 
-def generer_tableau_huitaine_cerp(filtre_annee, filtre_mois):
+def generer_tableau_huitaine_cerp(show_decades, filtre_annee, filtre_mois):
     tableau_huitaine_cerp = []
 
     colonnes = [
@@ -1575,15 +1575,21 @@ def generer_tableau_huitaine_cerp(filtre_annee, filtre_mois):
             if index < len(tableau_huitaine_cerp) - 1:
                 if isinstance(tableau_huitaine_cerp[index + 1][map_colonnes["Huitaine"]], date):
                     if tableau_huitaine_cerp[index + 1][map_colonnes["Huitaine"]].month != huitaine[map_colonnes["Huitaine"]].month:
-                        tableau_huitaine_cerp.insert(index + 1, [f'=> {month}', cumulative_sums[month], ""])
+                            tableau_huitaine_cerp.insert(index + 1, [f'=> {month}', cumulative_sums[month], ""])
                 else:
                     tableau_huitaine_cerp.insert(index + 1, [f'=> {month}', cumulative_sums[month], ""])
+
+    if not show_decades:
+        decadeless_huitaine_cerp = []
+        for ligne in tableau_huitaine_cerp:
+            if not isinstance(ligne[map_colonnes["Huitaine"]], date):
+                decadeless_huitaine_cerp.append(ligne)
 
     for huitaine in tableau_huitaine_cerp:
         if isinstance(huitaine[map_colonnes["Huitaine"]], date):
             huitaine[map_colonnes["Huitaine"]] = huitaine[map_colonnes["Huitaine"]].strftime("%d/%m/%Y")
 
-    return tableau_huitaine_cerp, colonnes
+    return (tableau_huitaine_cerp if show_decades else decadeless_huitaine_cerp), colonnes
 
 
 # -----------------------------------
