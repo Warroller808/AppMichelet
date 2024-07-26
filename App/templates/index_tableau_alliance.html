@@ -20,7 +20,7 @@
             Dernier import Digipharmacie : {{ dernier_import_digi }}
         </h5>
         <form method="get" action="\tableau_alliance\" id="filter-form">
-            <label for="decades">Afficher les huitaines:</label>
+            <label for="decades">Afficher les décades:</label>
             <input type="checkbox" name="decades" id="decades" {% if show_decades %}checked{% endif %}>
             <input type="hidden" name="decades_value" id="decades_value" value="{{ show_decades|yesno:'on,off' }}">
             <br><br>

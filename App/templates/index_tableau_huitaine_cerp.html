@@ -20,7 +20,7 @@
             Dernier import CERP : {{ dernier_import_cerp }}
         </h5>
         <form method="get" action="\tableau_huitaine_cerp\" id="filter-form">
-            <label for="decades">Afficher les décades:</label>
+            <label for="decades">Afficher les huitaines:</label>
             <input type="checkbox" name="decades" id="decades" {% if show_decades %}checked{% endif %}>
             <input type="hidden" name="decades_value" id="decades_value" value="{{ show_decades|yesno:'on,off' }}">
             <br><br>
